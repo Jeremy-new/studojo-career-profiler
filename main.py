@@ -197,10 +197,25 @@ async def chat(request: ChatRequest):
             "questions_asked": 1,
         }
 
+    # ── HARD CAP: force-complete after 10 assistant messages (server-enforced guardrail) ──
+    assistant_count = len([m for m in session["chat_history"] if m.role == "assistant"])
+    if assistant_count >= 10:
+        logger.info(f"HARD CAP: {assistant_count} assistant messages, forcing completion")
+        completion_msg = "Thanks for answering all my questions! I have everything I need. Generating your career profile now..."
+        session["chat_history"].append(ChatMessage(role="assistant", content=completion_msg))
+        return {
+            "message": completion_msg,
+            "state": "PAYLOAD_READY",
+            "mcq": None,
+            "text_input": False,
+            "is_complete": True,
+            "questions_asked": assistant_count,
+        }
+
     # ── NORMAL PATH: call LLM with timeout ──
     try:
         from profiler_agent import get_agent_response
-        logger.info("LLM PATH: calling get_agent_response...")
+        logger.info(f"LLM PATH: calling get_agent_response... (assistant_count={assistant_count})")
         response = await asyncio.wait_for(
             asyncio.to_thread(
                 get_agent_response,
