@@ -210,13 +210,48 @@ async def chat(request: ChatRequest):
             ),
             timeout=30.0,  # 30 second timeout
         )
-        logger.info(f"LLM PATH: got response, state={response.current_state}")
+        logger.info(f"LLM PATH: got response, state={response.current_state}, has_mcq={response.mcq is not None}, text_input={response.text_input}")
 
         session["chat_history"].append(ChatMessage(
             role="assistant",
             content=response.message,
             mcq=response.mcq,
         ))
+
+        # ── AUTO-RETRY: if LLM returned no MCQs and it's not salary/complete, ask for the next question ──
+        if not response.mcq and not response.text_input and not response.is_complete:
+            logger.info("AUTO-RETRY: LLM returned no MCQs, requesting follow-up question...")
+            # Add a hidden nudge message as if the user said "continue"
+            session["chat_history"].append(ChatMessage(role="user", content="Please continue and ask me the next question."))
+            try:
+                response2 = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        get_agent_response,
+                        session["chat_history"],
+                        session.get("resume_summary"),
+                        session.get("resume_raw_text"),
+                    ),
+                    timeout=20.0,
+                )
+                logger.info(f"AUTO-RETRY: got follow-up, state={response2.current_state}, has_mcq={response2.mcq is not None}")
+                session["chat_history"].append(ChatMessage(
+                    role="assistant",
+                    content=response2.message,
+                    mcq=response2.mcq,
+                ))
+                # Combine both messages with ||| separator
+                combined_msg = response.message + "|||" + response2.message
+                return {
+                    "message": combined_msg,
+                    "state": response2.current_state,
+                    "mcq": response2.mcq.model_dump() if response2.mcq else None,
+                    "text_input": response2.text_input,
+                    "is_complete": response2.is_complete,
+                    "questions_asked": len([m for m in session["chat_history"] if m.role == "assistant"]),
+                }
+            except Exception as e2:
+                logger.error(f"AUTO-RETRY failed: {e2}")
+                # Fall through to return original response
 
         return {
             "message": response.message,
