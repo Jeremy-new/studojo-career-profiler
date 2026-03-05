@@ -317,15 +317,36 @@ function addMessage(content, role = 'agent') {
     scrollToCenter();
 }
 
+let _typingTimer = null;
+
 function showTyping() {
     // Move indicator to the end of chat messages so it appears BELOW the latest content
     els.chatMessages.appendChild(els.typingIndicator);
     els.typingIndicator.classList.remove('hidden');
+
+    // Add a visible countdown so user knows it's working
+    let seconds = 0;
+    const dotsEl = els.typingIndicator.querySelector('.typing-dots');
+    if (dotsEl) {
+        _typingTimer = setInterval(() => {
+            seconds++;
+            dotsEl.innerHTML = `<span style="font-size:13px;color:#7c3aed">Thinking... ${seconds}s</span>`;
+        }, 1000);
+    }
     scrollToCenter();
 }
 
 function hideTyping() {
     els.typingIndicator.classList.add('hidden');
+    if (_typingTimer) {
+        clearInterval(_typingTimer);
+        _typingTimer = null;
+    }
+    // Restore original dots
+    const dotsEl = els.typingIndicator.querySelector('.typing-dots');
+    if (dotsEl) {
+        dotsEl.innerHTML = '<span></span><span></span><span></span>';
+    }
 }
 
 // ============================================================================
@@ -559,7 +580,12 @@ async function sendMessage(message, isInitial = false) {
 
     showTyping();
 
+    // Client-side timeout: abort fetch after 35s so the UI never hangs
+    const controller = new AbortController();
+    const fetchTimeout = setTimeout(() => controller.abort(), 35000);
+
     try {
+        console.log('[CHAT] Sending:', isInitial ? '(initial)' : message);
         const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -567,7 +593,11 @@ async function sendMessage(message, isInitial = false) {
                 session_id: state.sessionId,
                 message: isInitial ? '' : message,
             }),
+            signal: controller.signal,
         });
+
+        clearTimeout(fetchTimeout);
+        console.log('[CHAT] Response status:', res.status);
 
         const data = await res.json();
         hideTyping();
@@ -600,9 +630,15 @@ async function sendMessage(message, isInitial = false) {
         }
 
     } catch (err) {
+        clearTimeout(fetchTimeout);
         hideTyping();
-        addMessage('Sorry, something went wrong. Please try again.', 'agent');
-        console.error('Chat error:', err);
+        if (err.name === 'AbortError') {
+            console.warn('[CHAT] Request timed out after 35s');
+            addMessage('That took too long. Please try again, sometimes the AI needs a moment.', 'agent');
+        } else {
+            console.error('[CHAT] Error:', err);
+            addMessage('Sorry, something went wrong. Please try again.', 'agent');
+        }
     }
 
     state.isProcessing = false;
