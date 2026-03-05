@@ -1,21 +1,21 @@
 """
-CandidateProfiler — Profiling Agent (Dynamic Mode)
-Uses Azure OpenAI (via instructor) with a dynamic, personalized system prompt.
-All questions are LLM-generated based on resume context. No hardcoded MCQs.
+CandidateProfiler — Profiling Agent (Direct JSON Mode)
+Uses Azure OpenAI with JSON response format (NOT instructor/tool-calling).
+This is dramatically faster with reasoning models like gpt-5-mini.
 """
 
 import os
+import json
 import logging
-import instructor
 from openai import AzureOpenAI
 from dotenv import load_dotenv
-from models import AgentResponse, ChatMessage
+from models import AgentResponse, MCQQuestion, MCQOption, ChatMessage
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# Azure OpenAI Client (instructor-powered)
+# Azure OpenAI Client (direct, no instructor)
 # ============================================================================
 
 _client = None
@@ -31,12 +31,11 @@ def _get_client():
         if not endpoint or not api_key:
             raise ValueError("AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY must be set")
 
-        base_client = AzureOpenAI(
+        _client = AzureOpenAI(
             azure_endpoint=endpoint,
             api_key=api_key,
             api_version=api_version,
         )
-        _client = instructor.from_openai(base_client)
     return _client
 
 
@@ -48,20 +47,15 @@ def _get_model():
 # Career Ontology
 # ============================================================================
 
-CAREER_ONTOLOGY_FILE = os.path.join(os.path.dirname(__file__), "career_ontology.json")
-
 
 def get_ontology_as_text() -> str:
-    import json
     try:
-        with open(CAREER_ONTOLOGY_FILE, "r") as f:
-            ontology = json.load(f)
+        from career_ontology import CAREER_ONTOLOGY
         lines = []
-        for cluster in ontology.get("career_clusters", []):
-            lines.append(f"\n### {cluster['cluster_name']}")
-            for role in cluster.get("roles", []):
-                seniority = ", ".join(role.get("seniority_levels", []))
-                lines.append(f"- {role['title']} ({seniority})")
+        for cluster_name, specializations in CAREER_ONTOLOGY.items():
+            lines.append(f"\n### {cluster_name}")
+            for spec_name, roles in specializations.items():
+                lines.append(f"  {spec_name}: {', '.join(roles[:3])}")
         return "\n".join(lines)
     except Exception as e:
         logger.warning(f"Could not load career ontology: {e}")
@@ -69,7 +63,7 @@ def get_ontology_as_text() -> str:
 
 
 # ============================================================================
-# SYSTEM PROMPT: Dynamic, Personalized Career Counselor
+# SYSTEM PROMPT
 # ============================================================================
 
 SYSTEM_PROMPT = """You are **StudojoProfiler**, a career profiling chatbot. Your ONLY job is to understand the candidate's background, preferences, and career goals in 8 questions, then end the conversation.
@@ -129,22 +123,32 @@ After Q8: Set `is_complete: true`. Do NOT ask more questions. Say something like
 - Do NOT give career advice, tips, or guidance.
 - Do NOT compare roles, explain day-to-day tasks, or create templates.
 - Do NOT go beyond 8 questions. After Q8, you MUST set is_complete: true.
-- Do NOT ask clarifying follow-ups like "which excites you more?" or "do you prefer X or Y?" — these count as extra questions.
-- Do NOT spiral into sub-questions. Each question should cover ONE topic and move on.
-- Do NOT promise to "prepare" or "provide" anything. You are collecting data, not delivering insight.
+- Do NOT ask clarifying follow-ups.
+- Do NOT spiral into sub-questions.
+- Do NOT promise to "prepare" or "provide" anything.
 - Do NOT repeat yourself or paraphrase the user's answer back at length.
 
-## CRITICAL RULES (VIOLATION BREAKS THE UI)
-1. Ask ONE question per turn. Never bundle multiple questions.
-2. EVERY response MUST include mcq options (except salary = text_input). NO EXCEPTIONS.
-3. EVERY MCQ must end with "Other".
-4. Keep acknowledgments to ONE short sentence. No paragraphs.
-5. Use `|||` separator between acknowledgment and new question. Always.
-6. Track questions_asked_so_far accurately (increment by 1 each turn).
-7. After question 8 (questions_asked_so_far >= 8), set `is_complete: true` immediately.
-8. NEVER return a response without mcq/text_input unless is_complete is true.
-9. current_state should be "MCQ" for questions 1-8, "PAYLOAD_READY" when complete.
-10. The ENTIRE conversation must be 8 questions. Not 9, not 15, not 30. Exactly 8.
+## RESPONSE FORMAT
+You MUST respond with a JSON object matching this exact schema:
+{{
+  "message": "Your text message here (use ||| to separate acknowledgment from question)",
+  "current_state": "MCQ" or "PAYLOAD_READY",
+  "mcq": {{
+    "question": "The question text",
+    "options": [
+      {{"label": "A", "text": "Option text"}},
+      {{"label": "B", "text": "Option text"}},
+      {{"label": "C", "text": "Other"}}
+    ],
+    "allow_multiple": false
+  }},
+  "text_input": false,
+  "is_complete": false,
+  "questions_asked_so_far": 2
+}}
+
+For salary questions, set mcq to null and text_input to true.
+When is_complete is true, set mcq to null and text_input to false.
 """
 
 
@@ -162,10 +166,9 @@ def build_messages(
 
     # Add resume context (raw text, since we skip LLM summarization)
     if resume_raw_text:
-        truncated = resume_raw_text[:4000]  # Keep more context for better understanding
+        truncated = resume_raw_text[:4000]
         system_content += f"\n\n## CANDIDATE'S RESUME (raw text):\n{truncated}\n"
 
-        # Add quick-extracted metadata if available
         if resume_summary and isinstance(resume_summary, dict):
             if resume_summary.get("name"):
                 system_content += f"\nDetected name: {resume_summary['name']}"
@@ -188,7 +191,51 @@ def build_messages(
 
 
 # ============================================================================
-# Agent Response
+# Parse JSON Response into AgentResponse
+# ============================================================================
+
+def _parse_llm_json(raw_text: str, chat_history: list[ChatMessage]) -> AgentResponse:
+    """Parse the LLM's JSON string into an AgentResponse model."""
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError:
+        # Try to extract JSON from markdown code blocks
+        import re
+        match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw_text, re.DOTALL)
+        if match:
+            data = json.loads(match.group(1))
+        else:
+            logger.error(f"Could not parse LLM response as JSON: {raw_text[:300]}")
+            return AgentResponse(
+                message="Could you repeat that? I had trouble processing.",
+                current_state="MCQ",
+                questions_asked_so_far=len([m for m in chat_history if m.role == "assistant"]),
+            )
+
+    # Build MCQ if present
+    mcq = None
+    if data.get("mcq"):
+        mcq_data = data["mcq"]
+        options = [MCQOption(label=o.get("label", chr(65 + i)), text=o["text"])
+                   for i, o in enumerate(mcq_data.get("options", []))]
+        mcq = MCQQuestion(
+            question=mcq_data.get("question", ""),
+            options=options,
+            allow_multiple=mcq_data.get("allow_multiple", False),
+        )
+
+    return AgentResponse(
+        message=data.get("message", ""),
+        current_state=data.get("current_state", "MCQ"),
+        mcq=mcq,
+        text_input=data.get("text_input", False),
+        is_complete=data.get("is_complete", False),
+        questions_asked_so_far=data.get("questions_asked_so_far", 0),
+    )
+
+
+# ============================================================================
+# Agent Response (Direct JSON mode - NO instructor)
 # ============================================================================
 
 def get_agent_response(
@@ -197,19 +244,32 @@ def get_agent_response(
     resume_raw_text: str | None = None,
 ) -> AgentResponse:
     """
-    Get the next agent response. Uses instructor for structured output.
+    Get the next agent response using direct JSON mode.
+    Much faster than instructor's tool-calling for reasoning models.
     """
     client = _get_client()
     model = _get_model()
     messages = build_messages(chat_history, resume_summary, resume_raw_text)
 
     try:
-        response = client.chat.completions.create(
+        completion = client.chat.completions.create(
             model=model,
             messages=messages,
-            response_model=AgentResponse,
-            max_completion_tokens=1500,
+            response_format={"type": "json_object"},
+            max_completion_tokens=16000,
         )
+        raw = completion.choices[0].message.content
+        logger.info(f"LLM raw response length: {len(raw) if raw else 0} chars")
+
+        if not raw:
+            logger.error("LLM returned empty response")
+            return AgentResponse(
+                message="Could you repeat that? I had trouble processing.",
+                current_state="MCQ",
+                questions_asked_so_far=len([m for m in chat_history if m.role == "assistant"]),
+            )
+
+        response = _parse_llm_json(raw, chat_history)
         logger.info(f"Agent response: state={response.current_state}, "
                     f"has_mcq={response.mcq is not None}, "
                     f"complete={response.is_complete}")
@@ -228,17 +288,50 @@ def get_agent_response(
 # Final Payload Generation
 # ============================================================================
 
-PAYLOAD_PROMPT = """You are a career analysis AI. Read the entire conversation between the career counselor and the candidate below. Extract ALL relevant information and generate a comprehensive CandidatePayload.
+PAYLOAD_PROMPT = """You are a career analysis AI. Read the entire conversation and extract ALL relevant information into a structured JSON payload.
 
 ## INSTRUCTIONS
-- Fill in ALL fields based on what was discussed in the conversation.
-- For salary, use the numbers mentioned or estimate based on the role and seniority.
+- Fill in ALL fields based on what was discussed.
+- For salary, use numbers mentioned or estimate based on role and seniority.
 - Recommend 3-5 roles with fit scores (0-1) and reasoning.
-- Be specific in your analysis and recommendations.
-- If information was not discussed (e.g. name, email), leave those fields as null/empty.
-- For specializations, identify 2-3 based on the candidate's skills and interests.
-- For transition_paths, suggest 2-3 career progression paths.
+- If information was not discussed (e.g. name, email), use null or empty values.
 - profile_summary should be a concise 2-3 sentence overview.
+
+## REQUIRED JSON SCHEMA
+Return a JSON object with these fields:
+{
+  "candidate_id": "auto-generated UUID",
+  "timestamp": "ISO datetime string",
+  "profile_summary": "2-3 sentence overview",
+  "personal_info": {
+    "name": "string or null",
+    "email": "string or null",
+    "education": [],
+    "skills_detected": ["skill1", "skill2"]
+  },
+  "preferences": {
+    "locations": ["city1"],
+    "work_mode": "remote|hybrid|onsite|flexible",
+    "company_size": "string",
+    "company_stage": "string",
+    "industry_interests": ["industry1"],
+    "salary_expectations": {"min_annual_ctc": 0, "max_annual_ctc": 0, "currency": "INR"},
+    "risk_tolerance": "high|medium|low",
+    "timeline": "string"
+  },
+  "career_analysis": {
+    "primary_cluster": "string",
+    "secondary_cluster": "string or null",
+    "specializations": [{"name": "string", "fit_score": 0.8, "reasoning": "string"}],
+    "recommended_roles": [{"title": "string", "seniority": "intern|entry|junior|mid", "fit_score": 0.8, "salary_alignment": true, "reasoning": "string"}],
+    "transition_paths": ["path1"]
+  },
+  "session_metadata": {
+    "resume_uploaded": false,
+    "questions_answered": 8,
+    "confidence_score": 0.85
+  }
+}
 """
 
 
@@ -249,21 +342,20 @@ def generate_final_payload(
     resume_uploaded: bool = False,
 ) -> "CandidatePayload":
     """
-    Generate the final candidate profile payload from the conversation.
-    Uses instructor for structured output with the CandidatePayload model.
+    Generate the final candidate profile payload using direct JSON mode.
     """
     from models import CandidatePayload
+    import uuid
+    from datetime import datetime
 
     client = _get_client()
     model = _get_model()
 
-    # Build the conversation transcript
     transcript = ""
     for msg in chat_history:
         role_label = "Counselor" if msg.role == "assistant" else "Candidate"
         transcript += f"\n{role_label}: {msg.content}\n"
 
-    # Add resume context
     resume_context = ""
     if resume_raw_text:
         resume_context = f"\n\n## CANDIDATE'S RESUME:\n{resume_raw_text[:4000]}\n"
@@ -277,19 +369,59 @@ def generate_final_payload(
 
     messages = [
         {"role": "system", "content": PAYLOAD_PROMPT + resume_context},
-        {"role": "user", "content": f"Here is the full conversation transcript:\n{transcript}\n\nGenerate the CandidatePayload based on this conversation."},
+        {"role": "user", "content": f"Conversation transcript:\n{transcript}\n\nGenerate the JSON payload."},
     ]
 
     try:
-        payload = client.chat.completions.create(
+        completion = client.chat.completions.create(
             model=model,
             messages=messages,
-            response_model=CandidatePayload,
-            max_completion_tokens=1500,
+            response_format={"type": "json_object"},
+            max_completion_tokens=16000,
         )
+        raw = completion.choices[0].message.content
+        logger.info(f"Payload raw response length: {len(raw) if raw else 0} chars")
+
+        if not raw:
+            raise ValueError("LLM returned empty payload response")
+
+        data = json.loads(raw)
+
+        # Ensure required fields have defaults
+        data.setdefault("candidate_id", str(uuid.uuid4()))
+        data.setdefault("timestamp", datetime.now().isoformat())
+        data.setdefault("profile_summary", "Profile generated from conversation.")
+        data.setdefault("personal_info", {})
+        data.setdefault("preferences", {})
+        data.setdefault("career_analysis", {})
+        data.setdefault("session_metadata", {})
+
+        # Ensure nested defaults
+        prefs = data["preferences"]
+        prefs.setdefault("locations", [])
+        prefs.setdefault("work_mode", "flexible")
+        prefs.setdefault("company_size", "any")
+        prefs.setdefault("company_stage", "any")
+        prefs.setdefault("industry_interests", [])
+        prefs.setdefault("salary_expectations", {"min_annual_ctc": 0, "max_annual_ctc": 0, "currency": "INR"})
+        prefs.setdefault("risk_tolerance", "medium")
+        prefs.setdefault("timeline", "flexible")
+
+        career = data["career_analysis"]
+        career.setdefault("primary_cluster", "General")
+        career.setdefault("specializations", [{"name": "General", "fit_score": 0.5, "reasoning": "Based on conversation"}])
+        career.setdefault("recommended_roles", [{"title": "Associate", "seniority": "entry", "fit_score": 0.5, "salary_alignment": True, "reasoning": "Based on conversation"}])
+        career.setdefault("transition_paths", [])
+
+        meta = data["session_metadata"]
+        meta.setdefault("resume_uploaded", resume_uploaded)
+        meta.setdefault("questions_answered", len([m for m in chat_history if m.role == "user"]))
+        meta.setdefault("confidence_score", 0.7)
+
+        payload = CandidatePayload(**data)
         logger.info(f"Payload generated: {payload.candidate_id}")
         return payload
+
     except Exception as e:
         logger.error(f"Payload generation error: {e}")
         raise
-

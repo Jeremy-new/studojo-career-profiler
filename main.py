@@ -138,44 +138,18 @@ class ChatRequest(BaseModel):
     message: str
 
 
-@app.post("/api/chat")
-async def chat(request: ChatRequest):
-    """Send a message and get the agent's response."""
-    import asyncio
+# ============================================================================
+# Server-Side Question Flow (ZERO LLM calls during chat)
+# The gpt-5-mini reasoning model takes 60-120s per call.
+# So we hardcode all 8 questions and only call the LLM once for final payload.
+# ============================================================================
 
-    logger.info(f"CHAT REQUEST: session={request.session_id}, message='{request.message[:50] if request.message else ''}'")
-
-    session = sessions.get(request.session_id)
-    if not session:
-        session = {
-            "chat_history": [], "resume_summary": None,
-            "resume_raw_text": None, "resume_uploaded": False, "payload": None,
-        }
-        sessions[request.session_id] = session
-
-    # Add user message to history
-    if request.message:
-        session["chat_history"].append(ChatMessage(
-            role="user",
-            content=request.message,
-        ))
-
-    # ── FAST PATH: instant first message (works for BOTH skip and resume) ──
-    is_first_turn = (not request.message and len(session["chat_history"]) == 0)
-    if is_first_turn:
-        has_resume = bool(session.get("resume_raw_text"))
-
-        if has_resume:
-            # Resume uploaded: personalized greeting based on regex-extracted preview
-            preview = session.get("resume_summary", {})
-            skills = preview.get("skills", [])
-            skill_text = f" I can see skills like {', '.join(skills[:3])} on your resume." if skills else ""
-            first_msg = f"Hey! Thanks for sharing your resume.{skill_text} Let's find your perfect next role.|||Which of these best describes you right now?"
-        else:
-            # No resume: generic greeting
-            first_msg = "Hey there! I'm StudojoProfiler, your career buddy. Let's find your perfect next role.|||Which of these best describes you right now?"
-
-        first_mcq = {
+QUESTION_FLOW = [
+    {
+        "id": "stage",
+        "ack": None,  # First question has no ack
+        "message": "Which of these best describes you right now?",
+        "mcq": {
             "question": "Which of these best describes you right now?",
             "options": [
                 {"label": "A", "text": "I'm a student, not graduating soon"},
@@ -186,103 +160,217 @@ async def chat(request: ChatRequest):
                 {"label": "F", "text": "Other"},
             ],
             "allow_multiple": False,
+        },
+        "text_input": False,
+    },
+    {
+        "id": "job_type",
+        "ack": "Got it!",
+        "message": "Are you looking for an internship or a full-time role?",
+        "mcq": {
+            "question": "Are you looking for an internship or a full-time role?",
+            "options": [
+                {"label": "A", "text": "Full-time job"},
+                {"label": "B", "text": "Internship (3-6 months)"},
+                {"label": "C", "text": "Part-time or freelance"},
+                {"label": "D", "text": "Open to all options"},
+                {"label": "E", "text": "Other"},
+            ],
+            "allow_multiple": False,
+        },
+        "text_input": False,
+    },
+    {
+        "id": "location",
+        "ack": "Noted.",
+        "message": "Which cities or regions would you prefer to work in?",
+        "mcq": {
+            "question": "Which cities or regions would you prefer to work in?",
+            "options": [
+                {"label": "A", "text": "Bengaluru"},
+                {"label": "B", "text": "Mumbai"},
+                {"label": "C", "text": "Delhi NCR"},
+                {"label": "D", "text": "Hyderabad"},
+                {"label": "E", "text": "Pune"},
+                {"label": "F", "text": "Chennai"},
+                {"label": "G", "text": "Remote"},
+                {"label": "H", "text": "Other"},
+            ],
+            "allow_multiple": True,
+        },
+        "text_input": False,
+    },
+    {
+        "id": "company_stage",
+        "ack": "Great choices.",
+        "message": "What type of company do you want to join?",
+        "mcq": {
+            "question": "What type of company do you want to join?",
+            "options": [
+                {"label": "A", "text": "Early-stage startup (under 50 people)"},
+                {"label": "B", "text": "Growth-stage startup (50-250 people)"},
+                {"label": "C", "text": "Large company or enterprise (250+)"},
+                {"label": "D", "text": "MNC or global corporation"},
+                {"label": "E", "text": "No preference"},
+                {"label": "F", "text": "Other"},
+            ],
+            "allow_multiple": False,
+        },
+        "text_input": False,
+    },
+    {
+        "id": "industry",
+        "ack": "Makes sense.",
+        "message": "Which industries excite you most?",
+        "mcq": {
+            "question": "Which industries excite you most?",
+            "options": [
+                {"label": "A", "text": "Fintech / Payments"},
+                {"label": "B", "text": "Edtech / Education"},
+                {"label": "C", "text": "Healthcare / Healthtech"},
+                {"label": "D", "text": "E-commerce / D2C"},
+                {"label": "E", "text": "SaaS / Enterprise Software"},
+                {"label": "F", "text": "AI / Machine Learning"},
+                {"label": "G", "text": "Media / Content"},
+                {"label": "H", "text": "Other"},
+            ],
+            "allow_multiple": True,
+        },
+        "text_input": False,
+    },
+    {
+        "id": "salary",
+        "ack": "Good to know.",
+        "message": "What's your expected annual salary range (CTC)?",
+        "mcq": None,
+        "text_input": True,
+    },
+    {
+        "id": "role_focus",
+        "ack": "Thanks, noted.",
+        "message": "What kind of work do you enjoy most?",
+        "mcq": {
+            "question": "What kind of work do you enjoy most?",
+            "options": [
+                {"label": "A", "text": "Building product/features"},
+                {"label": "B", "text": "Growth and marketing"},
+                {"label": "C", "text": "Strategy and business development"},
+                {"label": "D", "text": "Analyzing data and insights"},
+                {"label": "E", "text": "Stakeholder management and partnerships"},
+                {"label": "F", "text": "Managing teams and people"},
+                {"label": "G", "text": "Other"},
+            ],
+            "allow_multiple": False,
+        },
+        "text_input": False,
+    },
+    {
+        "id": "skills",
+        "ack": "Great pick.",
+        "message": "Which skills do you want to use or develop in your next role?",
+        "mcq": {
+            "question": "Which skills do you want to use or develop?",
+            "options": [
+                {"label": "A", "text": "Data analysis and SQL"},
+                {"label": "B", "text": "Product management"},
+                {"label": "C", "text": "Marketing and growth"},
+                {"label": "D", "text": "Programming and engineering"},
+                {"label": "E", "text": "Design and UX"},
+                {"label": "F", "text": "Communication and leadership"},
+                {"label": "G", "text": "Other"},
+            ],
+            "allow_multiple": True,
+        },
+        "text_input": False,
+    },
+]
+
+
+@app.post("/api/chat")
+async def chat(request: ChatRequest):
+    """Server-side question flow. ZERO LLM calls. Instant responses."""
+
+    logger.info(f"CHAT REQUEST: session={request.session_id}, message='{request.message[:50] if request.message else ''}'")
+
+    session = sessions.get(request.session_id)
+    if not session:
+        session = {
+            "chat_history": [], "resume_summary": None,
+            "resume_raw_text": None, "resume_uploaded": False, "payload": None,
+            "question_index": 0,
         }
-        session["chat_history"].append(ChatMessage(role="assistant", content=first_msg))
-        logger.info("FAST PATH: returning instant first message")
+        sessions[request.session_id] = session
+
+    # Ensure question_index exists (for legacy sessions)
+    if "question_index" not in session:
+        session["question_index"] = 0
+
+    qi = session["question_index"]
+
+    # ── FIRST TURN: greeting + Q1 ──
+    if not request.message and qi == 0:
+        has_resume = bool(session.get("resume_raw_text"))
+        q = QUESTION_FLOW[0]
+
+        if has_resume:
+            preview = session.get("resume_summary", {})
+            skills = preview.get("skills", [])
+            skill_text = f" I can see skills like {', '.join(skills[:3])} on your resume." if skills else ""
+            greeting = f"Hey! Thanks for sharing your resume.{skill_text} Let's find your perfect next role."
+        else:
+            greeting = "Hey there! I'm StudojoProfiler, your career buddy. Let's find your perfect next role."
+
+        msg = f"{greeting}|||{q['message']}"
+        session["chat_history"].append(ChatMessage(role="assistant", content=msg))
+        logger.info("FAST PATH: Q1 served instantly")
+
         return {
-            "message": first_msg,
+            "message": msg,
             "state": "MCQ",
-            "mcq": first_mcq,
-            "text_input": False,
+            "mcq": q["mcq"],
+            "text_input": q["text_input"],
             "is_complete": False,
             "questions_asked": 1,
         }
 
-    # ── HARD CAP: force-complete after 10 assistant messages (server-enforced guardrail) ──
-    assistant_count = len([m for m in session["chat_history"] if m.role == "assistant"])
-    if assistant_count >= 10:
-        logger.info(f"HARD CAP: {assistant_count} assistant messages, forcing completion")
-        completion_msg = "Thanks for answering all my questions! I have everything I need. Generating your career profile now..."
-        session["chat_history"].append(ChatMessage(role="assistant", content=completion_msg))
+    # ── RECORD USER ANSWER ──
+    if request.message:
+        session["chat_history"].append(ChatMessage(role="user", content=request.message))
+
+    # ── ADVANCE TO NEXT QUESTION ──
+    session["question_index"] = qi + 1
+    next_qi = session["question_index"]
+
+    # ── ALL QUESTIONS DONE → COMPLETE ──
+    if next_qi >= len(QUESTION_FLOW):
+        done_msg = "Thanks for answering all my questions! I have everything I need. Generating your career profile now..."
+        session["chat_history"].append(ChatMessage(role="assistant", content=done_msg))
+        logger.info(f"COMPLETE: all {len(QUESTION_FLOW)} questions answered")
         return {
-            "message": completion_msg,
+            "message": done_msg,
             "state": "PAYLOAD_READY",
             "mcq": None,
             "text_input": False,
             "is_complete": True,
-            "questions_asked": assistant_count,
+            "questions_asked": next_qi,
         }
 
-    # ── NORMAL PATH: call LLM with timeout ──
-    try:
-        logger.info(f"LLM PATH: calling get_agent_response... (assistant_count={assistant_count})")
-        response = await asyncio.wait_for(
-            asyncio.to_thread(
-                get_agent_response,
-                session["chat_history"],
-                session.get("resume_summary"),
-                session.get("resume_raw_text"),
-            ),
-            timeout=50.0,  # 50 second timeout
-        )
-        logger.info(f"LLM PATH: got response, state={response.current_state}, has_mcq={response.mcq is not None}, text_input={response.text_input}")
+    # ── SERVE NEXT QUESTION INSTANTLY ──
+    q = QUESTION_FLOW[next_qi]
+    ack = q["ack"] or ""
+    msg = f"{ack}|||{q['message']}" if ack else q["message"]
 
-        session["chat_history"].append(ChatMessage(
-            role="assistant",
-            content=response.message,
-            mcq=response.mcq,
-        ))
+    session["chat_history"].append(ChatMessage(role="assistant", content=msg))
+    logger.info(f"SERVED Q{next_qi + 1}/{len(QUESTION_FLOW)}: {q['id']}")
 
-        # ── AUTO-RETRY: if LLM returned no MCQs and it's not salary/complete, ask for the next question ──
-        if not response.mcq and not response.text_input and not response.is_complete:
-            logger.info("AUTO-RETRY: LLM returned no MCQs, requesting follow-up question...")
-            # Add a hidden nudge message as if the user said "continue"
-            session["chat_history"].append(ChatMessage(role="user", content="Please continue and ask me the next question."))
-            try:
-                response2 = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        get_agent_response,
-                        session["chat_history"],
-                        session.get("resume_summary"),
-                        session.get("resume_raw_text"),
-                    ),
-                    timeout=30.0,
-                )
-                logger.info(f"AUTO-RETRY: got follow-up, state={response2.current_state}, has_mcq={response2.mcq is not None}")
-                session["chat_history"].append(ChatMessage(
-                    role="assistant",
-                    content=response2.message,
-                    mcq=response2.mcq,
-                ))
-                # Combine both messages with ||| separator
-                combined_msg = response.message + "|||" + response2.message
-                return {
-                    "message": combined_msg,
-                    "state": response2.current_state,
-                    "mcq": response2.mcq.model_dump() if response2.mcq else None,
-                    "text_input": response2.text_input,
-                    "is_complete": response2.is_complete,
-                    "questions_asked": len([m for m in session["chat_history"] if m.role == "assistant"]),
-                }
-            except Exception as e2:
-                logger.error(f"AUTO-RETRY failed: {e2}")
-                # Fall through to return original response
-
-        return {
-            "message": response.message,
-            "state": response.current_state,
-            "mcq": response.mcq.model_dump() if response.mcq else None,
-            "text_input": response.text_input,
-            "is_complete": response.is_complete,
-            "questions_asked": len([m for m in session["chat_history"] if m.role == "assistant"]),
-        }
-
-    except asyncio.TimeoutError:
-        logger.error("Chat timeout: LLM call took > 50 seconds")
-        raise HTTPException(status_code=504, detail="LLM call timed out, client should retry")
-    except Exception as e:
-        logger.error(f"Chat error: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    return {
+        "message": msg,
+        "state": "MCQ",
+        "mcq": q["mcq"],
+        "text_input": q["text_input"],
+        "is_complete": False,
+        "questions_asked": next_qi + 1,
+    }
 
 
 class PayloadRequest(BaseModel):
