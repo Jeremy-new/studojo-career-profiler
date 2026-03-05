@@ -576,30 +576,28 @@ def _generate_payload_from_answers(session: dict) -> dict:
     answers = session.get("answers", {})
     resume_summary = session.get("resume_summary", {}) or {}
 
-    stage = answers.get("stage", "")
-    job_type = answers.get("job_type", "")
+    def _to_str(val) -> str:
+        if isinstance(val, list): return ", ".join(val)
+        return str(val) if val else ""
+
+    stage = _to_str(answers.get("stage", ""))
+    job_type = _to_str(answers.get("job_type", ""))
     domains = answers.get("domain", [])
-    if isinstance(domains, str):
-        domains = [domains]
+    if isinstance(domains, str): domains = [domains]
     specs = answers.get("specialization", [])
-    if isinstance(specs, str):
-        specs = [specs]
+    if isinstance(specs, str): specs = [specs]
     locations = answers.get("location", [])
-    if isinstance(locations, str):
-        locations = [locations]
-    work_style = answers.get("work_style", "")
-    company_stage = answers.get("company_stage", "")
+    if isinstance(locations, str): locations = [locations]
+    work_style = _to_str(answers.get("work_style", ""))
+    company_stage = _to_str(answers.get("company_stage", ""))
     industries = answers.get("industry", [])
-    if isinstance(industries, str):
-        industries = [industries]
-    salary_text = answers.get("salary", "")
+    if isinstance(industries, str): industries = [industries]
+    salary_text = _to_str(answers.get("salary", ""))
     role_focus = answers.get("role_focus", [])
-    if isinstance(role_focus, str):
-        role_focus = [role_focus]
+    if isinstance(role_focus, str): role_focus = [role_focus]
     skills = answers.get("skills", [])
-    if isinstance(skills, str):
-        skills = [skills]
-    timeline = answers.get("timeline", "")
+    if isinstance(skills, str): skills = [skills]
+    timeline = _to_str(answers.get("timeline", ""))
 
     seniority = "entry"
     if "intern" in job_type.lower():

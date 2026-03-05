@@ -1,0 +1,90 @@
+{
+    "candidate_id": "860698c6-ff58-4c0b-8cd2-6d85e3055927",
+    "timestamp": "2026-03-05T19:29:25.417202",
+    "profile_summary": "I'm a student, graduating within 6 months. interested in Technology & Engineering, Data & Analytics. looking to work in Bengaluru, Remote.",
+    "personal_info": {
+        "name": null,
+        "email": null,
+        "education": [],
+        "skills_detected": [
+            "Python / JavaScript / Programming",
+            "Machine learning / AI / Deep learning"
+        ]
+    },
+    "preferences": {
+        "locations": [
+            "Bengaluru",
+            "Remote"
+        ],
+        "work_mode": "remote",
+        "company_size": "Growth-stage startup (50-500 people)",
+        "company_stage": "Growth-stage startup (50-500 people)",
+        "industry_interests": [
+            "AI / Machine Learning / Deep Tech",
+            "SaaS / Enterprise Software"
+        ],
+        "salary_expectations": {
+            "min_annual_ctc": 800000,
+            "max_annual_ctc": 1200000,
+            "currency": "INR"
+        },
+        "risk_tolerance": "medium",
+        "timeline": "In 1-3 months"
+    },
+    "career_analysis": {
+        "primary_cluster": "Technology & Engineering",
+        "secondary_cluster": "Data & Analytics",
+        "specializations": [
+            {
+                "name": "Software Development",
+                "fit_score": 0.85,
+                "reasoning": "Strong match based on your interest in Technology & Engineering"
+            },
+            {
+                "name": "Data Science & ML",
+                "fit_score": 0.85,
+                "reasoning": "Strong match based on your interest in Data & Analytics"
+            }
+        ],
+        "recommended_roles": [
+            {
+                "title": "Software Engineer",
+                "seniority": "entry",
+                "fit_score": 0.85,
+                "salary_alignment": true,
+                "reasoning": "Matches your interest in Technology & Engineering / Software Development"
+            },
+            {
+                "title": "Frontend Developer",
+                "seniority": "entry",
+                "fit_score": 0.85,
+                "salary_alignment": true,
+                "reasoning": "Matches your interest in Technology & Engineering / Software Development"
+            },
+            {
+                "title": "Data Scientist",
+                "seniority": "entry",
+                "fit_score": 0.85,
+                "salary_alignment": true,
+                "reasoning": "Matches your interest in Data & Analytics / Data Science & ML"
+            },
+            {
+                "title": "ML Engineer",
+                "seniority": "entry",
+                "fit_score": 0.85,
+                "salary_alignment": true,
+                "reasoning": "Matches your interest in Data & Analytics / Data Science & ML"
+            }
+        ],
+        "transition_paths": [
+            "Software Engineer → Senior Software Engineer → Lead",
+            "Cross-domain: Technology & Engineering ↔ Data & Analytics",
+            "Individual Contributor → Management track"
+        ]
+    },
+    "session_metadata": {
+        "resume_uploaded": false,
+        "questions_answered": 12,
+        "confidence_score": 0.95
+    }
+}
