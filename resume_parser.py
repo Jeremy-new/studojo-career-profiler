@@ -131,29 +131,3 @@ def quick_extract_preview(raw_text: str) -> dict:
 
     # Generate a brief summary
     if preview["name"]:
-        preview["summary_text"] = f"Resume for {preview['name']} ({preview['char_count']} characters extracted)"
-    else:
-        preview["summary_text"] = f"Resume parsed ({preview['char_count']} characters extracted)"
-
-    return preview
-
-
-def parse_resume(file_bytes: bytes, filename: str) -> tuple[str, dict]:
-    """
-    Fast resume parsing: extract text + regex preview. No LLM call.
-    Returns (raw_text, preview_dict).
-    """
-    ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
-
-    if ext == "pdf":
-        raw_text = extract_text_from_pdf(file_bytes)
-    elif ext in ("docx", "doc"):
-        raw_text = extract_text_from_docx(file_bytes)
-    else:
-        raise ValueError(f"Unsupported file type: .{ext}. Please upload a PDF or DOCX file.")
-
-    if not raw_text or len(raw_text.strip()) < 50:
-        raise ValueError("The uploaded file appears to be empty or contains too little text to parse.")
-
-    preview = quick_extract_preview(raw_text)
-    return raw_text, preview

@@ -224,7 +224,7 @@ async def chat(request: ChatRequest):
             "mcq": response.mcq.model_dump() if response.mcq else None,
             "text_input": response.text_input,
             "is_complete": response.is_complete,
-            "questions_asked": response.questions_asked_so_far,
+            "questions_asked": len([m for m in session["chat_history"] if m.role == "assistant"]),
         }
 
     except asyncio.TimeoutError:
