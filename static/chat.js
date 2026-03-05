@@ -741,4 +741,67 @@ function renderPayload(p) {
         const pr = p.preferences;
         html += `
             <div class="payload-card">
-                <h3>⚙️ Preferences</h3
+                <h3>⚙️ Preferences</h3>
+                <p><strong>Locations:</strong> <span class="value">${pr.locations ? pr.locations.join(', ') : 'N/A'}</span></p>
+                <p><strong>Work Mode:</strong> <span class="value">${pr.work_mode || 'N/A'}</span></p>
+                <p><strong>Company Size:</strong> <span class="value">${pr.company_size || 'N/A'}</span></p>
+                <p><strong>Industries:</strong> <span class="value">${pr.industry_interests ? pr.industry_interests.join(', ') : 'N/A'}</span></p>
+                <p><strong>Salary Range:</strong> <span class="value">${formatSalary(pr.salary_expectations)}</span></p>
+                <p><strong>Timeline:</strong> <span class="value">${pr.timeline || 'N/A'}</span></p>
+            </div>
+        `;
+    }
+
+    if (p.career_analysis) {
+        const ca = p.career_analysis;
+        html += `
+            <div class="payload-card">
+                <h3>🎯 Career Analysis</h3>
+                <p><strong>Primary Cluster:</strong> <span class="tag">${escapeHtml(ca.primary_cluster)}</span></p>
+                ${ca.secondary_cluster ? `<p><strong>Secondary Cluster:</strong> <span class="tag">${escapeHtml(ca.secondary_cluster)}</span></p>` : ''}
+            </div>
+        `;
+
+        if (ca.recommended_roles && ca.recommended_roles.length) {
+            let rolesHtml = ca.recommended_roles.map(r => {
+                const scoreClass = r.fit_score >= 0.8 ? 'high' : r.fit_score >= 0.6 ? 'medium' : 'low';
+                const scorePercent = Math.round(r.fit_score * 100);
+                return `
+                    <div class="role-card">
+                        <div class="role-title">${escapeHtml(cleanText(r.title))}</div>
+                        <div class="role-meta">
+                            <span class="fit-score ${scoreClass}">${scorePercent}% fit</span>
+                            <span>${r.seniority || 'entry'}-level</span>
+                        </div>
+                        <div class="role-reasoning">${escapeHtml(cleanText(r.reasoning))}</div>
+                    </div>
+                `;
+            }).join('');
+            html += `<div class="payload-card"><h3>💼 Recommended Roles</h3>${rolesHtml}</div>`;
+        }
+    }
+
+    els.payloadContent.innerHTML = html;
+}
+
+// ============================================================================
+// Utilities
+// ============================================================================
+
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function formatSalary(sal) {
+    if (!sal) return 'N/A';
+    const format = (n) => {
+        if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)} Cr`;
+        if (n >= 100000) return `₹${(n / 100000).toFixed(1)} LPA`;
+        if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
+        return `₹${n}`;
+    };
+    return `${format(sal.min_annual_ctc)} to ${format(sal.max_annual_ctc)} ${sal.currency || ''}`;
+}
