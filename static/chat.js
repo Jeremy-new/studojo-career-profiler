@@ -193,6 +193,7 @@ async function handleFileUpload(file) {
         return;
     }
 
+    console.log('[UPLOAD] Starting upload for:', file.name);
     els.uploadZone.classList.add('hidden');
     els.uploadProgress.classList.remove('hidden');
     els.progressFill.style.width = '30%';
@@ -200,7 +201,13 @@ async function handleFileUpload(file) {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('session_id', state.sessionId);
+
+    // Safety timeout: if upload takes > 20s, go to chat anyway
+    const safetyTimeout = setTimeout(() => {
+        console.warn('[UPLOAD] Safety timeout reached, transitioning to chat');
+        els.uploadProgress.classList.add('hidden');
+        switchView('chat');
+    }, 20000);
 
     try {
         els.progressFill.style.width = '60%';
@@ -211,21 +218,35 @@ async function handleFileUpload(file) {
             body: formData,
         });
 
+        console.log('[UPLOAD] Server responded:', res.status);
+
         if (!res.ok) {
-            const err = await res.json();
+            const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
             throw new Error(err.detail || 'Upload failed');
         }
 
         const data = await res.json();
+        console.log('[UPLOAD] Response data:', JSON.stringify(data).substring(0, 200));
+
+        clearTimeout(safetyTimeout);
         els.progressFill.style.width = '100%';
         els.progressText.textContent = 'Done!';
 
+        // Show preview, then auto-transition to chat
         setTimeout(() => {
             els.uploadProgress.classList.add('hidden');
-            showResumePreview(data.summary);
+            try {
+                if (data.summary) showResumePreview(data.summary);
+            } catch (previewErr) {
+                console.error('[UPLOAD] Preview rendering failed:', previewErr);
+            }
+            // Auto-start chat after 2 seconds (user doesn't have to click)
+            setTimeout(() => switchView('chat'), 2000);
         }, 300);
 
     } catch (err) {
+        clearTimeout(safetyTimeout);
+        console.error('[UPLOAD] Error:', err);
         els.uploadProgress.classList.add('hidden');
         els.uploadZone.classList.remove('hidden');
         alert('Failed to upload resume: ' + err.message);
