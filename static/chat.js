@@ -297,6 +297,8 @@ function addMessage(content, role = 'agent') {
 }
 
 function showTyping() {
+    // Move indicator to the end of chat messages so it appears BELOW the latest content
+    els.chatMessages.appendChild(els.typingIndicator);
     els.typingIndicator.classList.remove('hidden');
     scrollToCenter();
 }
