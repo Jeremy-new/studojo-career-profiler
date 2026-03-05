@@ -248,3 +248,73 @@ def get_agent_response(
             current_state="MCQ",
             questions_asked_so_far=len([m for m in chat_history if m.role == "assistant"]),
         )
+
+
+# ============================================================================
+# Final Payload Generation
+# ============================================================================
+
+PAYLOAD_PROMPT = """You are a career analysis AI. Read the entire conversation between the career counselor and the candidate below. Extract ALL relevant information and generate a comprehensive CandidatePayload.
+
+## INSTRUCTIONS
+- Fill in ALL fields based on what was discussed in the conversation.
+- For salary, use the numbers mentioned or estimate based on the role and seniority.
+- Recommend 3-5 roles with fit scores (0-1) and reasoning.
+- Be specific in your analysis and recommendations.
+- If information was not discussed (e.g. name, email), leave those fields as null/empty.
+- For specializations, identify 2-3 based on the candidate's skills and interests.
+- For transition_paths, suggest 2-3 career progression paths.
+- profile_summary should be a concise 2-3 sentence overview.
+"""
+
+
+def generate_final_payload(
+    chat_history: list[ChatMessage],
+    resume_summary: dict | None = None,
+    resume_raw_text: str | None = None,
+    resume_uploaded: bool = False,
+) -> "CandidatePayload":
+    """
+    Generate the final candidate profile payload from the conversation.
+    Uses instructor for structured output with the CandidatePayload model.
+    """
+    from models import CandidatePayload
+
+    client = _get_client()
+    model = _get_model()
+
+    # Build the conversation transcript
+    transcript = ""
+    for msg in chat_history:
+        role_label = "Counselor" if msg.role == "assistant" else "Candidate"
+        transcript += f"\n{role_label}: {msg.content}\n"
+
+    # Add resume context
+    resume_context = ""
+    if resume_raw_text:
+        resume_context = f"\n\n## CANDIDATE'S RESUME:\n{resume_raw_text[:4000]}\n"
+    if resume_summary and isinstance(resume_summary, dict):
+        if resume_summary.get("name"):
+            resume_context += f"\nName: {resume_summary['name']}"
+        if resume_summary.get("email"):
+            resume_context += f"\nEmail: {resume_summary['email']}"
+        if resume_summary.get("skills"):
+            resume_context += f"\nSkills: {', '.join(resume_summary['skills'])}"
+
+    messages = [
+        {"role": "system", "content": PAYLOAD_PROMPT + resume_context},
+        {"role": "user", "content": f"Here is the full conversation transcript:\n{transcript}\n\nGenerate the CandidatePayload based on this conversation."},
+    ]
+
+    try:
+        payload = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            response_model=CandidatePayload,
+        )
+        logger.info(f"Payload generated: {payload.candidate_id}")
+        return payload
+    except Exception as e:
+        logger.error(f"Payload generation error: {e}")
+        raise
+

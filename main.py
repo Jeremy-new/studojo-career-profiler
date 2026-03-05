@@ -290,8 +290,10 @@ class PayloadRequest(BaseModel):
 
 @app.post("/api/generate-payload")
 async def generate_payload(request: PayloadRequest):
-    """Generate the final candidate profile payload."""
+    """Generate the final candidate profile payload and save as .md to Outputs/."""
     import asyncio
+    import json
+    from datetime import datetime
     from profiler_agent import generate_final_payload
 
     session = sessions.get(request.session_id)
@@ -302,17 +304,89 @@ async def generate_payload(request: PayloadRequest):
         raise HTTPException(status_code=400, detail="Not enough conversation data to generate a profile")
 
     try:
-        payload = await asyncio.to_thread(
-            generate_final_payload,
-            session["chat_history"],
-            session.get("resume_summary"),
-            session.get("resume_raw_text"),
-            session.get("resume_uploaded", False),
+        payload = await asyncio.wait_for(
+            asyncio.to_thread(
+                generate_final_payload,
+                session["chat_history"],
+                session.get("resume_summary"),
+                session.get("resume_raw_text"),
+                session.get("resume_uploaded", False),
+            ),
+            timeout=60.0,  # Payload generation can take longer
         )
 
         session["payload"] = payload
-        return payload.model_dump()
+        payload_dict = payload.model_dump()
 
+        # ── Save as .md to Outputs/ folder ──
+        outputs_dir = os.path.join(os.path.dirname(__file__), "Outputs")
+        os.makedirs(outputs_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        candidate_name = (payload_dict.get("personal_info", {}).get("name") or "unknown").replace(" ", "_")
+        filename = f"{timestamp}_{candidate_name}.md"
+        filepath = os.path.join(outputs_dir, filename)
+
+        # Build the .md content
+        md_content = f"""---
+candidate_id: {payload_dict.get('candidate_id', 'N/A')}
+timestamp: {payload_dict.get('timestamp', 'N/A')}
+resume_uploaded: {payload_dict.get('session_metadata', {}).get('resume_uploaded', False)}
+questions_answered: {payload_dict.get('session_metadata', {}).get('questions_answered', 0)}
+confidence_score: {payload_dict.get('session_metadata', {}).get('confidence_score', 0)}
+---
+
+# Candidate Profile: {payload_dict.get('personal_info', {}).get('name') or 'Unknown'}
+
+## Profile Summary
+{payload_dict.get('profile_summary', 'N/A')}
+
+## Personal Info
+- **Name:** {payload_dict.get('personal_info', {}).get('name') or 'N/A'}
+- **Email:** {payload_dict.get('personal_info', {}).get('email') or 'N/A'}
+- **Skills:** {', '.join(payload_dict.get('personal_info', {}).get('skills_detected', []))}
+
+## Preferences
+- **Locations:** {', '.join(payload_dict.get('preferences', {}).get('locations', []))}
+- **Work Mode:** {payload_dict.get('preferences', {}).get('work_mode', 'N/A')}
+- **Company Stage:** {payload_dict.get('preferences', {}).get('company_stage', 'N/A')}
+- **Industries:** {', '.join(payload_dict.get('preferences', {}).get('industry_interests', []))}
+- **Salary:** {payload_dict.get('preferences', {}).get('salary_expectations', {}).get('currency', 'INR')} {payload_dict.get('preferences', {}).get('salary_expectations', {}).get('min_annual_ctc', 0):,} - {payload_dict.get('preferences', {}).get('salary_expectations', {}).get('max_annual_ctc', 0):,}
+
+## Career Analysis
+- **Primary Cluster:** {payload_dict.get('career_analysis', {}).get('primary_cluster', 'N/A')}
+- **Secondary Cluster:** {payload_dict.get('career_analysis', {}).get('secondary_cluster', 'N/A')}
+
+### Recommended Roles
+"""
+        for role in payload_dict.get("career_analysis", {}).get("recommended_roles", []):
+            md_content += f"| {role.get('title', 'N/A')} | {role.get('seniority', 'N/A')} | {role.get('fit_score', 0):.0%} | {role.get('reasoning', '')} |\n"
+
+        md_content += f"""
+### Transition Paths
+"""
+        for path in payload_dict.get("career_analysis", {}).get("transition_paths", []):
+            md_content += f"- {path}\n"
+
+        md_content += f"""
+---
+
+## Full JSON Payload
+
+```json
+{json.dumps(payload_dict, indent=2)}
+```
+"""
+
+        with open(filepath, "w") as f:
+            f.write(md_content)
+
+        logger.info(f"Payload saved to: {filepath}")
+        return {"payload": payload_dict, "saved_to": filename}
+
+    except asyncio.TimeoutError:
+        logger.error("Payload generation timed out (>60s)")
+        raise HTTPException(status_code=504, detail="Payload generation timed out. Try again.")
     except Exception as e:
         logger.error(f"Payload generation failed: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to generate payload: {str(e)}")

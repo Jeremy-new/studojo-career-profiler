@@ -1,0 +1,107 @@
+{
+    "candidate_id": "4bd09335-7387-4588-acf8-1fbbe3768cdb",
+    "timestamp": "2026-03-05T14:20:00.000000",
+    "profile_summary": "A recent graduate with 0-2 years of experience in SEO, Product Management, and Marketing. Shows strong interest in remote work and digital marketing roles. Experienced with growth, product, and marketing functions with skills in SEO, Product Management, and Marketing strategies.",
+    "personal_info": {
+        "name": null,
+        "email": null,
+        "education": [],
+        "skills_detected": [
+            "SEO",
+            "Product Management",
+            "Marketing",
+            "Meta Ads",
+            "B2C Marketing",
+            "Growth Strategy"
+        ]
+    },
+    "preferences": {
+        "locations": [
+            "Remote"
+        ],
+        "work_mode": "remote",
+        "company_size": "50-200",
+        "company_stage": "growth-stage",
+        "industry_interests": [
+            "Digital Marketing",
+            "Technology/SaaS",
+            "E-commerce"
+        ],
+        "salary_expectations": {
+            "min_annual_ctc": 0,
+            "max_annual_ctc": 0,
+            "currency": "INR"
+        },
+        "risk_tolerance": "medium",
+        "timeline": "immediate"
+    },
+    "career_analysis": {
+        "primary_cluster": "Marketing & Growth",
+        "secondary_cluster": "Product Management",
+        "specializations": [
+            {
+                "name": "Digital Marketing / Performance Marketing",
+                "fit_score": 0.90,
+                "reasoning": "Strong SEO and Meta Ads expertise combined with B2C marketing interest makes this a natural fit for performance marketing roles."
+            },
+            {
+                "name": "Growth Marketing",
+                "fit_score": 0.85,
+                "reasoning": "Product management background and marketing skills position well for growth-focused roles in SaaS companies."
+            },
+            {
+                "name": "Product Marketing",
+                "fit_score": 0.78,
+                "reasoning": "Intersection of product management and marketing skills, well-suited for product positioning and go-to-market roles."
+            }
+        ],
+        "recommended_roles": [
+            {
+                "title": "Digital Marketing Specialist",
+                "seniority": "entry",
+                "fit_score": 0.92,
+                "salary_alignment": true,
+                "reasoning": "Direct match with SEO and Meta Ads skills. Remote-friendly role with high demand in growth-stage SaaS and e-commerce companies."
+            },
+            {
+                "title": "Growth Marketing Associate",
+                "seniority": "entry",
+                "fit_score": 0.88,
+                "salary_alignment": true,
+                "reasoning": "Combines marketing expertise with product sense. Growth-stage companies actively seek this profile for driving user acquisition and retention."
+            },
+            {
+                "title": "SEO Specialist",
+                "seniority": "entry",
+                "fit_score": 0.85,
+                "salary_alignment": true,
+                "reasoning": "Core SEO skills directly applicable. Remote-first roles widely available in this specialization."
+            },
+            {
+                "title": "Product Marketing Associate",
+                "seniority": "entry",
+                "fit_score": 0.80,
+                "salary_alignment": true,
+                "reasoning": "Product management background provides strong foundation for product positioning, competitive analysis, and launch strategies."
+            },
+            {
+                "title": "Performance Marketing Analyst",
+                "seniority": "entry",
+                "fit_score": 0.78,
+                "salary_alignment": true,
+                "reasoning": "Meta Ads experience and B2C marketing knowledge align well with paid acquisition and campaign optimization roles."
+            }
+        ],
+        "transition_paths": [
+            "Digital Marketing Specialist → Senior Digital Marketer → Head of Marketing",
+            "Growth Marketing Associate → Growth Lead → VP of Growth",
+            "Product Marketing Associate → Senior PMM → Director of Product Marketing"
+        ]
+    },
+    "session_metadata": {
+        "resume_uploaded": true,
+        "questions_answered": 8,
+        "session_duration_seconds": 180,
+        "confidence_score": 0.82
+    }
+}

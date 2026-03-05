@@ -659,8 +659,15 @@ async function generatePayload() {
 
         if (!res.ok) throw new Error('Failed to generate payload');
 
-        state.payload = await res.json();
+        const data = await res.json();
+        // Response shape: { payload: {...}, saved_to: "filename.md" }
+        state.payload = data.payload || data;
         hideTyping();
+
+        if (data.saved_to) {
+            addMessage(`Report saved to Outputs/${data.saved_to} ✅`, 'agent');
+        }
+
         renderPayload(state.payload);
         setTimeout(() => switchView('payload'), 500);
 
