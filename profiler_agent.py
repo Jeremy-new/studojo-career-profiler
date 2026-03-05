@@ -208,6 +208,7 @@ def get_agent_response(
             model=model,
             messages=messages,
             response_model=AgentResponse,
+            max_completion_tokens=1500,
         )
         logger.info(f"Agent response: state={response.current_state}, "
                     f"has_mcq={response.mcq is not None}, "
@@ -284,6 +285,7 @@ def generate_final_payload(
             model=model,
             messages=messages,
             response_model=CandidatePayload,
+            max_completion_tokens=1500,
         )
         logger.info(f"Payload generated: {payload.candidate_id}")
         return payload
