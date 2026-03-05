@@ -3,6 +3,7 @@ CandidateProfiler — FastAPI Main App
 Serves the Jinja2 frontend and exposes API endpoints for resume upload, chat, and payload generation.
 """
 
+import os
 import logging
 import traceback
 import uuid
@@ -138,32 +139,32 @@ class ChatRequest(BaseModel):
 
 
 # ============================================================================
-# Server-Side Question Flow (ZERO LLM calls during chat)
-# The gpt-5-mini reasoning model takes 60-120s per call.
-# So we hardcode all 8 questions and only call the LLM once for final payload.
+# Career Ontology — Dynamic Question Generation
 # ============================================================================
 
-QUESTION_FLOW = [
-    {
-        "id": "stage",
-        "ack": None,  # First question has no ack
+from career_ontology import CAREER_ONTOLOGY, get_all_clusters, get_specializations
+
+
+# Static question templates
+STATIC_QUESTIONS = {
+    "stage": {
+        "ack": None,
         "message": "Which of these best describes you right now?",
         "mcq": {
             "question": "Which of these best describes you right now?",
             "options": [
                 {"label": "A", "text": "I'm a student, not graduating soon"},
                 {"label": "B", "text": "I'm a student, graduating within 6 months"},
-                {"label": "C", "text": "Recent graduate, 0-2 years of experience"},
-                {"label": "D", "text": "Experienced professional, 3+ years"},
-                {"label": "E", "text": "I'm switching careers or exploring new fields"},
+                {"label": "C", "text": "Recent graduate (0-2 years experience)"},
+                {"label": "D", "text": "Experienced professional (3+ years)"},
+                {"label": "E", "text": "Switching careers or exploring new fields"},
                 {"label": "F", "text": "Other"},
             ],
             "allow_multiple": False,
         },
         "text_input": False,
     },
-    {
-        "id": "job_type",
+    "job_type": {
         "ack": "Got it!",
         "message": "Are you looking for an internship or a full-time role?",
         "mcq": {
@@ -179,9 +180,9 @@ QUESTION_FLOW = [
         },
         "text_input": False,
     },
-    {
-        "id": "location",
-        "ack": "Noted.",
+    # domain + specialization are built dynamically from ontology
+    "location": {
+        "ack": "Interesting!",
         "message": "Which cities or regions would you prefer to work in?",
         "mcq": {
             "question": "Which cities or regions would you prefer to work in?",
@@ -192,102 +193,223 @@ QUESTION_FLOW = [
                 {"label": "D", "text": "Hyderabad"},
                 {"label": "E", "text": "Pune"},
                 {"label": "F", "text": "Chennai"},
-                {"label": "G", "text": "Remote"},
-                {"label": "H", "text": "Other"},
+                {"label": "G", "text": "Kolkata"},
+                {"label": "H", "text": "Remote"},
+                {"label": "I", "text": "International"},
+                {"label": "J", "text": "Other"},
             ],
             "allow_multiple": True,
         },
         "text_input": False,
     },
-    {
-        "id": "company_stage",
-        "ack": "Great choices.",
-        "message": "What type of company do you want to join?",
+    "work_style": {
+        "ack": "Good choices.",
+        "message": "What's your preferred work style?",
         "mcq": {
-            "question": "What type of company do you want to join?",
+            "question": "What's your preferred work style?",
             "options": [
-                {"label": "A", "text": "Early-stage startup (under 50 people)"},
-                {"label": "B", "text": "Growth-stage startup (50-250 people)"},
-                {"label": "C", "text": "Large company or enterprise (250+)"},
-                {"label": "D", "text": "MNC or global corporation"},
-                {"label": "E", "text": "No preference"},
-                {"label": "F", "text": "Other"},
+                {"label": "A", "text": "Fully remote"},
+                {"label": "B", "text": "Hybrid (mix of office and remote)"},
+                {"label": "C", "text": "Fully on-site / in office"},
+                {"label": "D", "text": "Flexible, no strong preference"},
+                {"label": "E", "text": "Other"},
             ],
             "allow_multiple": False,
         },
         "text_input": False,
     },
-    {
-        "id": "industry",
-        "ack": "Makes sense.",
-        "message": "Which industries excite you most?",
+    "company_stage": {
+        "ack": "Noted.",
+        "message": "What type of company appeals to you the most?",
         "mcq": {
-            "question": "Which industries excite you most?",
+            "question": "What type of company appeals to you?",
             "options": [
-                {"label": "A", "text": "Fintech / Payments"},
+                {"label": "A", "text": "Early-stage startup (seed / under 50 people)"},
+                {"label": "B", "text": "Growth-stage startup (50-500 people)"},
+                {"label": "C", "text": "Mid-size company (500-2000)"},
+                {"label": "D", "text": "Large enterprise or MNC (2000+)"},
+                {"label": "E", "text": "Government / Public sector"},
+                {"label": "F", "text": "No preference"},
+                {"label": "G", "text": "Other"},
+            ],
+            "allow_multiple": False,
+        },
+        "text_input": False,
+    },
+    "industry": {
+        "ack": "Makes sense.",
+        "message": "Which industries excite you the most?",
+        "mcq": {
+            "question": "Which industries excite you the most?",
+            "options": [
+                {"label": "A", "text": "Fintech / Payments / Banking"},
                 {"label": "B", "text": "Edtech / Education"},
                 {"label": "C", "text": "Healthcare / Healthtech"},
-                {"label": "D", "text": "E-commerce / D2C"},
+                {"label": "D", "text": "E-commerce / D2C / Retail"},
                 {"label": "E", "text": "SaaS / Enterprise Software"},
-                {"label": "F", "text": "AI / Machine Learning"},
-                {"label": "G", "text": "Media / Content"},
-                {"label": "H", "text": "Other"},
+                {"label": "F", "text": "AI / Machine Learning / Deep Tech"},
+                {"label": "G", "text": "Media / Content / Gaming"},
+                {"label": "H", "text": "Consulting / Professional Services"},
+                {"label": "I", "text": "Manufacturing / Automotive"},
+                {"label": "J", "text": "Other"},
             ],
             "allow_multiple": True,
         },
         "text_input": False,
     },
-    {
-        "id": "salary",
+    "salary": {
         "ack": "Good to know.",
-        "message": "What's your expected annual salary range (CTC)?",
+        "message": "What's your expected annual salary or CTC range? (e.g. ₹4-6 LPA, ₹15-20 LPA)",
         "mcq": None,
         "text_input": True,
     },
-    {
-        "id": "role_focus",
+    "role_focus": {
         "ack": "Thanks, noted.",
-        "message": "What kind of work do you enjoy most?",
+        "message": "What kind of day-to-day work do you enjoy the most?",
         "mcq": {
-            "question": "What kind of work do you enjoy most?",
+            "question": "What kind of day-to-day work do you enjoy most?",
             "options": [
-                {"label": "A", "text": "Building product/features"},
-                {"label": "B", "text": "Growth and marketing"},
-                {"label": "C", "text": "Strategy and business development"},
-                {"label": "D", "text": "Analyzing data and insights"},
-                {"label": "E", "text": "Stakeholder management and partnerships"},
-                {"label": "F", "text": "Managing teams and people"},
-                {"label": "G", "text": "Other"},
-            ],
-            "allow_multiple": False,
-        },
-        "text_input": False,
-    },
-    {
-        "id": "skills",
-        "ack": "Great pick.",
-        "message": "Which skills do you want to use or develop in your next role?",
-        "mcq": {
-            "question": "Which skills do you want to use or develop?",
-            "options": [
-                {"label": "A", "text": "Data analysis and SQL"},
-                {"label": "B", "text": "Product management"},
-                {"label": "C", "text": "Marketing and growth"},
-                {"label": "D", "text": "Programming and engineering"},
-                {"label": "E", "text": "Design and UX"},
-                {"label": "F", "text": "Communication and leadership"},
-                {"label": "G", "text": "Other"},
+                {"label": "A", "text": "Building products and writing code"},
+                {"label": "B", "text": "Analyzing data and finding insights"},
+                {"label": "C", "text": "Designing user experiences and visuals"},
+                {"label": "D", "text": "Marketing, growth, and customer acquisition"},
+                {"label": "E", "text": "Strategy, planning, and business development"},
+                {"label": "F", "text": "Managing teams and stakeholders"},
+                {"label": "G", "text": "Research, writing, and content creation"},
+                {"label": "H", "text": "Other"},
             ],
             "allow_multiple": True,
         },
         "text_input": False,
     },
+    "skills": {
+        "ack": "Great choice!",
+        "message": "Which skills do you want to actively use or develop in your next role?",
+        "mcq": {
+            "question": "Which skills do you want to use or grow?",
+            "options": [
+                {"label": "A", "text": "Python / JavaScript / Programming"},
+                {"label": "B", "text": "Data analysis, SQL, Excel"},
+                {"label": "C", "text": "Product management / Roadmapping"},
+                {"label": "D", "text": "UI/UX Design / Figma"},
+                {"label": "E", "text": "Digital marketing / SEO / Ads"},
+                {"label": "F", "text": "Communication and public speaking"},
+                {"label": "G", "text": "Leadership and people management"},
+                {"label": "H", "text": "Machine learning / AI / Deep learning"},
+                {"label": "I", "text": "Financial analysis / Modeling"},
+                {"label": "J", "text": "Other"},
+            ],
+            "allow_multiple": True,
+        },
+        "text_input": False,
+    },
+    "timeline": {
+        "ack": "Got it!",
+        "message": "When are you looking to start your next role?",
+        "mcq": {
+            "question": "When do you want to start?",
+            "options": [
+                {"label": "A", "text": "Immediately (within 1 month)"},
+                {"label": "B", "text": "In 1-3 months"},
+                {"label": "C", "text": "In 3-6 months"},
+                {"label": "D", "text": "6+ months (just exploring)"},
+                {"label": "E", "text": "Other"},
+            ],
+            "allow_multiple": False,
+        },
+        "text_input": False,
+    },
+}
+
+# 12 questions in order. "domain" and "specialization" are dynamically generated.
+QUESTION_ORDER = [
+    "stage", "job_type", "domain", "specialization", "location",
+    "work_style", "company_stage", "industry", "salary",
+    "role_focus", "skills", "timeline",
 ]
 
 
+def _build_domain_question() -> dict:
+    """Dynamically build domain Q from career ontology clusters."""
+    clusters = get_all_clusters()
+    options = []
+    for i, cluster in enumerate(clusters[:12]):
+        options.append({"label": chr(65 + i), "text": cluster})
+    options.append({"label": chr(65 + len(options)), "text": "Other"})
+    return {
+        "ack": "Nice.",
+        "message": "What broad career domain excites you the most? Pick 1-3.",
+        "mcq": {
+            "question": "What broad career domain excites you the most?",
+            "options": options,
+            "allow_multiple": True,
+        },
+        "text_input": False,
+    }
+
+
+def _build_specialization_question(selected_domains: list[str]) -> dict:
+    """Dynamically build specialization Q from the selected domain(s)."""
+    specs = []
+    for domain in selected_domains:
+        for cluster_name, specializations in CAREER_ONTOLOGY.items():
+            if domain.lower() in cluster_name.lower() or cluster_name.lower() in domain.lower():
+                specs.extend(list(specializations.keys()))
+
+    # Deduplicate and cap at 10
+    seen = set()
+    unique_specs = []
+    for s in specs:
+        if s not in seen:
+            seen.add(s)
+            unique_specs.append(s)
+    unique_specs = unique_specs[:10]
+
+    if not unique_specs:
+        # Fallback: show popular specializations
+        for _, specializations in list(CAREER_ONTOLOGY.items())[:5]:
+            unique_specs.extend(list(specializations.keys())[:2])
+        unique_specs = unique_specs[:10]
+
+    options = []
+    for i, spec in enumerate(unique_specs):
+        options.append({"label": chr(65 + i), "text": spec})
+    options.append({"label": chr(65 + len(options)), "text": "Other"})
+
+    domain_names = ", ".join(selected_domains[:2])
+    return {
+        "ack": "Great choices!",
+        "message": f"Within {domain_names}, which specializations interest you?",
+        "mcq": {
+            "question": f"Which specialization in {domain_names} interests you most?",
+            "options": options,
+            "allow_multiple": True,
+        },
+        "text_input": False,
+    }
+
+
+def _get_question(q_id: str, session: dict) -> dict:
+    """Get a question by ID, building it dynamically if needed."""
+    if q_id == "domain":
+        return _build_domain_question()
+    elif q_id == "specialization":
+        answers = session.get("answers", {})
+        domains = answers.get("domain", [])
+        if isinstance(domains, str):
+            domains = [domains]
+        return _build_specialization_question(domains)
+    else:
+        return STATIC_QUESTIONS.get(q_id, STATIC_QUESTIONS["stage"])
+
+
+# ============================================================================
+# Chat Endpoint — 12 Dynamic Questions, Instant Responses
+# ============================================================================
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    """Server-side question flow. ZERO LLM calls. Instant responses."""
+    """Server-side question flow. 12 ontology-based questions. Instant responses."""
 
     logger.info(f"CHAT REQUEST: session={request.session_id}, message='{request.message[:50] if request.message else ''}'")
 
@@ -295,29 +417,30 @@ async def chat(request: ChatRequest):
     if not session:
         session = {
             "chat_history": [], "resume_summary": None,
-            "resume_raw_text": None, "resume_uploaded": False, "payload": None,
-            "question_index": 0,
+            "resume_raw_text": None, "resume_uploaded": False,
+            "payload": None, "question_index": 0, "answers": {},
         }
         sessions[request.session_id] = session
 
-    # Ensure question_index exists (for legacy sessions)
     if "question_index" not in session:
         session["question_index"] = 0
+    if "answers" not in session:
+        session["answers"] = {}
 
     qi = session["question_index"]
 
     # ── FIRST TURN: greeting + Q1 ──
     if not request.message and qi == 0:
         has_resume = bool(session.get("resume_raw_text"))
-        q = QUESTION_FLOW[0]
+        q = _get_question(QUESTION_ORDER[0], session)
 
         if has_resume:
             preview = session.get("resume_summary", {})
             skills = preview.get("skills", [])
             skill_text = f" I can see skills like {', '.join(skills[:3])} on your resume." if skills else ""
-            greeting = f"Hey! Thanks for sharing your resume.{skill_text} Let's find your perfect next role."
+            greeting = f"Hey! Thanks for sharing your resume.{skill_text} Let's find your perfect next role. I have 12 quick questions."
         else:
-            greeting = "Hey there! I'm StudojoProfiler, your career buddy. Let's find your perfect next role."
+            greeting = "Hey there! I'm StudojoProfiler, your career buddy. I'll ask you 12 quick questions to understand what you're looking for."
 
         msg = f"{greeting}|||{q['message']}"
         session["chat_history"].append(ChatMessage(role="assistant", content=msg))
@@ -335,16 +458,22 @@ async def chat(request: ChatRequest):
     # ── RECORD USER ANSWER ──
     if request.message:
         session["chat_history"].append(ChatMessage(role="user", content=request.message))
+        if qi < len(QUESTION_ORDER):
+            q_id = QUESTION_ORDER[qi]
+            if "," in request.message:
+                session["answers"][q_id] = [a.strip() for a in request.message.split(",")]
+            else:
+                session["answers"][q_id] = request.message
 
-    # ── ADVANCE TO NEXT QUESTION ──
+    # ── ADVANCE ──
     session["question_index"] = qi + 1
     next_qi = session["question_index"]
 
-    # ── ALL QUESTIONS DONE → COMPLETE ──
-    if next_qi >= len(QUESTION_FLOW):
-        done_msg = "Thanks for answering all my questions! I have everything I need. Generating your career profile now..."
+    # ── ALL DONE → COMPLETE ──
+    if next_qi >= len(QUESTION_ORDER):
+        done_msg = "Thanks for answering all 12 questions! I have everything I need to build your career profile. Generating your report now... 📊"
         session["chat_history"].append(ChatMessage(role="assistant", content=done_msg))
-        logger.info(f"COMPLETE: all {len(QUESTION_FLOW)} questions answered")
+        logger.info(f"COMPLETE: all {len(QUESTION_ORDER)} questions answered")
         return {
             "message": done_msg,
             "state": "PAYLOAD_READY",
@@ -354,13 +483,14 @@ async def chat(request: ChatRequest):
             "questions_asked": next_qi,
         }
 
-    # ── SERVE NEXT QUESTION INSTANTLY ──
-    q = QUESTION_FLOW[next_qi]
-    ack = q["ack"] or ""
+    # ── SERVE NEXT QUESTION ──
+    next_q_id = QUESTION_ORDER[next_qi]
+    q = _get_question(next_q_id, session)
+    ack = q.get("ack") or ""
     msg = f"{ack}|||{q['message']}" if ack else q["message"]
 
     session["chat_history"].append(ChatMessage(role="assistant", content=msg))
-    logger.info(f"SERVED Q{next_qi + 1}/{len(QUESTION_FLOW)}: {q['id']}")
+    logger.info(f"SERVED Q{next_qi + 1}/{len(QUESTION_ORDER)}: {next_q_id}")
 
     return {
         "message": msg,
@@ -372,67 +502,243 @@ async def chat(request: ChatRequest):
     }
 
 
+# ============================================================================
+# Payload Generation — 100% Server-Side (NO LLM)
+# Maps collected answers → career ontology → roles/specializations
+# Generates instantly, saves JSON + Markdown to Outputs/
+# ============================================================================
+
 class PayloadRequest(BaseModel):
     session_id: str
 
 
+def _parse_salary(salary_text: str) -> dict:
+    """Parse '₹4-6 LPA' into min/max ints."""
+    import re
+    nums = re.findall(r'[\d.]+', salary_text)
+    multiplier = 1
+    text_lower = salary_text.lower()
+    if "lpa" in text_lower or "lac" in text_lower or "lakh" in text_lower:
+        multiplier = 100000
+    elif "cr" in text_lower:
+        multiplier = 10000000
+    if len(nums) >= 2:
+        return {"min_annual_ctc": int(float(nums[0]) * multiplier), "max_annual_ctc": int(float(nums[1]) * multiplier), "currency": "INR"}
+    elif len(nums) == 1:
+        val = int(float(nums[0]) * multiplier)
+        return {"min_annual_ctc": val, "max_annual_ctc": int(val * 1.3), "currency": "INR"}
+    return {"min_annual_ctc": 0, "max_annual_ctc": 0, "currency": "INR"}
+
+
+def _map_work_mode(answer: str) -> str:
+    a = answer.lower()
+    if "remote" in a:
+        return "remote"
+    elif "hybrid" in a:
+        return "hybrid"
+    elif "on-site" in a or "office" in a:
+        return "onsite"
+    return "flexible"
+
+
+def _find_matching_roles(domains: list, specs: list, seniority: str) -> list:
+    """Find matching roles from the ontology."""
+    roles = []
+    for cluster_name, specializations in CAREER_ONTOLOGY.items():
+        domain_match = any(
+            d.lower() in cluster_name.lower() or cluster_name.lower() in d.lower()
+            for d in domains
+        )
+        if not domain_match:
+            continue
+        for spec_name, spec_roles in specializations.items():
+            spec_match = any(
+                s.lower() in spec_name.lower() or spec_name.lower() in s.lower()
+                for s in specs
+            ) if specs else True
+            if spec_match:
+                for role in spec_roles[:2]:
+                    roles.append({
+                        "title": role, "seniority": seniority,
+                        "cluster": cluster_name, "specialization": spec_name,
+                        "fit_score": 0.85 if spec_match else 0.65,
+                        "salary_alignment": True,
+                        "reasoning": f"Matches your interest in {cluster_name} / {spec_name}",
+                    })
+    return roles[:5]
+
+
+def _generate_payload_from_answers(session: dict) -> dict:
+    """Build the full CandidatePayload from collected answers + ontology."""
+    import uuid as _uuid
+    from datetime import datetime as _dt
+
+    answers = session.get("answers", {})
+    resume_summary = session.get("resume_summary", {}) or {}
+
+    stage = answers.get("stage", "")
+    job_type = answers.get("job_type", "")
+    domains = answers.get("domain", [])
+    if isinstance(domains, str):
+        domains = [domains]
+    specs = answers.get("specialization", [])
+    if isinstance(specs, str):
+        specs = [specs]
+    locations = answers.get("location", [])
+    if isinstance(locations, str):
+        locations = [locations]
+    work_style = answers.get("work_style", "")
+    company_stage = answers.get("company_stage", "")
+    industries = answers.get("industry", [])
+    if isinstance(industries, str):
+        industries = [industries]
+    salary_text = answers.get("salary", "")
+    role_focus = answers.get("role_focus", [])
+    if isinstance(role_focus, str):
+        role_focus = [role_focus]
+    skills = answers.get("skills", [])
+    if isinstance(skills, str):
+        skills = [skills]
+    timeline = answers.get("timeline", "")
+
+    seniority = "entry"
+    if "intern" in job_type.lower():
+        seniority = "intern"
+    elif "student" in stage.lower() and "not graduating" in stage.lower():
+        seniority = "intern"
+    elif "experienced" in stage.lower() or "3+" in stage.lower():
+        seniority = "mid"
+    elif "switch" in stage.lower():
+        seniority = "junior"
+
+    matched_roles = _find_matching_roles(domains, specs, seniority)
+    if not matched_roles:
+        matched_roles = [
+            {"title": "Business Analyst", "seniority": seniority, "cluster": "Consulting & Strategy",
+             "specialization": "Management Consulting", "fit_score": 0.6, "salary_alignment": True,
+             "reasoning": "General fit based on profile"},
+        ]
+
+    primary_cluster = domains[0] if domains else matched_roles[0]["cluster"]
+    secondary_cluster = domains[1] if len(domains) > 1 else None
+
+    spec_fits = []
+    seen_specs = set()
+    for role in matched_roles:
+        if role["specialization"] not in seen_specs:
+            seen_specs.add(role["specialization"])
+            spec_fits.append({
+                "name": role["specialization"],
+                "fit_score": role["fit_score"],
+                "reasoning": f"Strong match based on your interest in {role['cluster']}",
+            })
+
+    role_fits = [{"title": r["title"], "seniority": r["seniority"], "fit_score": r["fit_score"],
+                  "salary_alignment": r["salary_alignment"], "reasoning": r["reasoning"]} for r in matched_roles]
+
+    transitions = []
+    if seniority in ("intern", "entry"):
+        transitions.append(f"{matched_roles[0]['title']} → Senior {matched_roles[0]['title'].split()[0]} → Lead")
+    if len(domains) > 1:
+        transitions.append(f"Cross-domain: {domains[0]} ↔ {domains[1]}")
+    transitions.append("Individual Contributor → Management track")
+
+    risk = "medium"
+    if "early" in company_stage.lower() or "seed" in company_stage.lower():
+        risk = "high"
+    elif "enterprise" in company_stage.lower() or "mnc" in company_stage.lower() or "government" in company_stage.lower():
+        risk = "low"
+
+    summary_parts = []
+    if stage:
+        summary_parts.append(stage.rstrip("."))
+    if domains:
+        summary_parts.append(f"interested in {', '.join(domains[:2])}")
+    if locations:
+        summary_parts.append(f"looking to work in {', '.join(locations[:2])}")
+    profile_summary = ". ".join(summary_parts) + "." if summary_parts else "Career profile generated from conversation."
+
+    detected_skills = resume_summary.get("skills", []) if isinstance(resume_summary, dict) else []
+    if not detected_skills:
+        detected_skills = skills
+
+    return {
+        "candidate_id": str(_uuid.uuid4()),
+        "timestamp": _dt.now().isoformat(),
+        "profile_summary": profile_summary,
+        "personal_info": {
+            "name": resume_summary.get("name") if isinstance(resume_summary, dict) else None,
+            "email": resume_summary.get("email") if isinstance(resume_summary, dict) else None,
+            "education": [],
+            "skills_detected": detected_skills[:10],
+        },
+        "preferences": {
+            "locations": locations,
+            "work_mode": _map_work_mode(work_style),
+            "company_size": company_stage,
+            "company_stage": company_stage,
+            "industry_interests": industries,
+            "salary_expectations": _parse_salary(salary_text),
+            "risk_tolerance": risk,
+            "timeline": timeline,
+        },
+        "career_analysis": {
+            "primary_cluster": primary_cluster,
+            "secondary_cluster": secondary_cluster,
+            "specializations": spec_fits[:3],
+            "recommended_roles": role_fits[:5],
+            "transition_paths": transitions,
+        },
+        "session_metadata": {
+            "resume_uploaded": session.get("resume_uploaded", False),
+            "questions_answered": len(answers),
+            "confidence_score": min(0.95, 0.5 + len(answers) * 0.04),
+        },
+    }
+
+
 @app.post("/api/generate-payload")
 async def generate_payload(request: PayloadRequest):
-    """Generate the final candidate profile payload and save as .md to Outputs/."""
-    import asyncio
+    """Generate payload server-side from collected answers (NO LLM). Instant."""
     import json
     from datetime import datetime
-    from profiler_agent import generate_final_payload
 
     session = sessions.get(request.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    if len(session["chat_history"]) < 4:
-        raise HTTPException(status_code=400, detail="Not enough conversation data to generate a profile")
+    if len(session.get("answers", {})) < 4:
+        raise HTTPException(status_code=400, detail="Not enough answers to generate a profile")
 
     try:
-        payload = await asyncio.wait_for(
-            asyncio.to_thread(
-                generate_final_payload,
-                session["chat_history"],
-                session.get("resume_summary"),
-                session.get("resume_raw_text"),
-                session.get("resume_uploaded", False),
-            ),
-            timeout=60.0,  # Payload generation can take longer
-        )
+        payload_dict = _generate_payload_from_answers(session)
+        session["payload"] = payload_dict
 
-        session["payload"] = payload
-        payload_dict = payload.model_dump()
-
-        # ── Save as .md to Outputs/ folder ──
+        # ── Save to Outputs/ ──
         outputs_dir = os.path.join(os.path.dirname(__file__), "Outputs")
         os.makedirs(outputs_dir, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         candidate_name = (payload_dict.get("personal_info", {}).get("name") or "unknown").replace(" ", "_")
-        filename = f"{timestamp}_{candidate_name}.md"
-        filepath = os.path.join(outputs_dir, filename)
 
-        # Build the .md content
+        # Save raw JSON
+        json_filename = f"{timestamp}_{candidate_name}.json"
+        json_filepath = os.path.join(outputs_dir, json_filename)
+        with open(json_filepath, "w") as jf:
+            json.dump(payload_dict, jf, indent=2)
+
+        # Save Markdown summary
+        md_filename = f"{timestamp}_{candidate_name}.md"
+        md_filepath = os.path.join(outputs_dir, md_filename)
         md_content = f"""---
 candidate_id: {payload_dict.get('candidate_id', 'N/A')}
 timestamp: {payload_dict.get('timestamp', 'N/A')}
-resume_uploaded: {payload_dict.get('session_metadata', {}).get('resume_uploaded', False)}
-questions_answered: {payload_dict.get('session_metadata', {}).get('questions_answered', 0)}
-confidence_score: {payload_dict.get('session_metadata', {}).get('confidence_score', 0)}
 ---
 
 # Candidate Profile: {payload_dict.get('personal_info', {}).get('name') or 'Unknown'}
 
 ## Profile Summary
 {payload_dict.get('profile_summary', 'N/A')}
-
-## Personal Info
-- **Name:** {payload_dict.get('personal_info', {}).get('name') or 'N/A'}
-- **Email:** {payload_dict.get('personal_info', {}).get('email') or 'N/A'}
-- **Skills:** {', '.join(payload_dict.get('personal_info', {}).get('skills_detected', []))}
 
 ## Preferences
 - **Locations:** {', '.join(payload_dict.get('preferences', {}).get('locations', []))}
@@ -441,17 +747,13 @@ confidence_score: {payload_dict.get('session_metadata', {}).get('confidence_scor
 - **Industries:** {', '.join(payload_dict.get('preferences', {}).get('industry_interests', []))}
 - **Salary:** {payload_dict.get('preferences', {}).get('salary_expectations', {}).get('currency', 'INR')} {payload_dict.get('preferences', {}).get('salary_expectations', {}).get('min_annual_ctc', 0):,} - {payload_dict.get('preferences', {}).get('salary_expectations', {}).get('max_annual_ctc', 0):,}
 
-## Career Analysis
-- **Primary Cluster:** {payload_dict.get('career_analysis', {}).get('primary_cluster', 'N/A')}
-- **Secondary Cluster:** {payload_dict.get('career_analysis', {}).get('secondary_cluster', 'N/A')}
-
-### Recommended Roles
+## Recommended Roles
 """
         for role in payload_dict.get("career_analysis", {}).get("recommended_roles", []):
-            md_content += f"| {role.get('title', 'N/A')} | {role.get('seniority', 'N/A')} | {role.get('fit_score', 0):.0%} | {role.get('reasoning', '')} |\n"
+            md_content += f"- **{role.get('title', 'N/A')}** ({role.get('seniority', 'N/A')}) — {role.get('fit_score', 0):.0%} fit — {role.get('reasoning', '')}\n"
 
         md_content += f"""
-### Transition Paths
+## Career Transitions
 """
         for path in payload_dict.get("career_analysis", {}).get("transition_paths", []):
             md_content += f"- {path}\n"
@@ -465,16 +767,12 @@ confidence_score: {payload_dict.get('session_metadata', {}).get('confidence_scor
 {json.dumps(payload_dict, indent=2)}
 ```
 """
-
-        with open(filepath, "w") as f:
+        with open(md_filepath, "w") as f:
             f.write(md_content)
 
-        logger.info(f"Payload saved to: {filepath}")
-        return {"payload": payload_dict, "saved_to": filename}
+        logger.info(f"Payload saved: {json_filepath} and {md_filepath}")
+        return {"payload": payload_dict, "saved_to": json_filename}
 
-    except asyncio.TimeoutError:
-        logger.error("Payload generation timed out (>60s)")
-        raise HTTPException(status_code=504, detail="Payload generation timed out. Try again.")
     except Exception as e:
         logger.error(f"Payload generation failed: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to generate payload: {str(e)}")
