@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from models import ChatMessage, ResumeSummary, CandidatePayload
+from profiler_agent import get_agent_response, generate_final_payload
 
 logging.basicConfig(
     level=logging.INFO,
@@ -214,7 +215,6 @@ async def chat(request: ChatRequest):
 
     # ── NORMAL PATH: call LLM with timeout ──
     try:
-        from profiler_agent import get_agent_response
         logger.info(f"LLM PATH: calling get_agent_response... (assistant_count={assistant_count})")
         response = await asyncio.wait_for(
             asyncio.to_thread(
@@ -295,7 +295,6 @@ async def generate_payload(request: PayloadRequest):
     import asyncio
     import json
     from datetime import datetime
-    from profiler_agent import generate_final_payload
 
     session = sessions.get(request.session_id)
     if not session:
