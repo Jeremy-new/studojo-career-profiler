@@ -568,24 +568,27 @@ function showCTCInput() {
 // Send Message & Handle Response
 // ============================================================================
 
-async function sendMessage(message, isInitial = false) {
-    if (state.isProcessing) return;
-    state.isProcessing = true;
-    els.sendBtn.disabled = true;
+async function sendMessage(message, isInitial = false, retryCount = 0) {
+    if (state.isProcessing && retryCount === 0) return;
 
-    if (!isInitial && message) {
-        addMessage(message, 'user');
-        els.chatInput.value = '';
+    if (retryCount === 0) {
+        state.isProcessing = true;
+        els.sendBtn.disabled = true;
+
+        if (!isInitial && message) {
+            addMessage(message, 'user');
+            els.chatInput.value = '';
+        }
+
+        showTyping();
     }
 
-    showTyping();
-
-    // Client-side timeout: abort fetch after 35s so the UI never hangs
+    // Client-side timeout: abort fetch after 60s
     const controller = new AbortController();
-    const fetchTimeout = setTimeout(() => controller.abort(), 35000);
+    const fetchTimeout = setTimeout(() => controller.abort(), 60000);
 
     try {
-        console.log('[CHAT] Sending:', isInitial ? '(initial)' : message);
+        console.log('[CHAT] Sending:', isInitial ? '(initial)' : message, 'retry:', retryCount);
         const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -598,6 +601,9 @@ async function sendMessage(message, isInitial = false) {
 
         clearTimeout(fetchTimeout);
         console.log('[CHAT] Response status:', res.status);
+        if (!res.ok) {
+            throw new Error(`HTTP Error: ${res.status}`);
+        }
 
         const data = await res.json();
         hideTyping();
@@ -629,20 +635,31 @@ async function sendMessage(message, isInitial = false) {
             setTimeout(() => generatePayload(), 1000);
         }
 
+        state.isProcessing = false;
+        els.sendBtn.disabled = !els.chatInput.value.trim();
+
     } catch (err) {
         clearTimeout(fetchTimeout);
+
+        // Auto-retry once silently before showing an error
+        if (retryCount < 1) {
+            console.warn(`[CHAT] Request failed (attempt ${retryCount + 1}), retrying silently...`, err);
+            setTimeout(() => sendMessage(message, isInitial, retryCount + 1), 1000);
+            return;
+        }
+
         hideTyping();
-        if (err.name === 'AbortError') {
-            console.warn('[CHAT] Request timed out after 35s');
-            addMessage('That took too long. Please try again, sometimes the AI needs a moment.', 'agent');
+        state.isProcessing = false;
+        els.sendBtn.disabled = !els.chatInput.value.trim();
+
+        if (err.name === 'AbortError' || (err.message && err.message.includes('504'))) {
+            console.error('[CHAT] Request timed out completely after retries');
+            addMessage('The AI is taking very long to respond. Please try submitting your answer again.', 'agent');
         } else {
             console.error('[CHAT] Error:', err);
-            addMessage('Sorry, something went wrong. Please try again.', 'agent');
+            addMessage('Sorry, something went wrong. Please try submitting your answer again.', 'agent');
         }
     }
-
-    state.isProcessing = false;
-    els.sendBtn.disabled = !els.chatInput.value.trim();
 }
 
 async function generatePayload() {

@@ -223,7 +223,7 @@ async def chat(request: ChatRequest):
                 session.get("resume_summary"),
                 session.get("resume_raw_text"),
             ),
-            timeout=30.0,  # 30 second timeout
+            timeout=50.0,  # 50 second timeout
         )
         logger.info(f"LLM PATH: got response, state={response.current_state}, has_mcq={response.mcq is not None}, text_input={response.text_input}")
 
@@ -246,7 +246,7 @@ async def chat(request: ChatRequest):
                         session.get("resume_summary"),
                         session.get("resume_raw_text"),
                     ),
-                    timeout=20.0,
+                    timeout=30.0,
                 )
                 logger.info(f"AUTO-RETRY: got follow-up, state={response2.current_state}, has_mcq={response2.mcq is not None}")
                 session["chat_history"].append(ChatMessage(
@@ -278,25 +278,11 @@ async def chat(request: ChatRequest):
         }
 
     except asyncio.TimeoutError:
-        logger.error("Chat timeout: LLM call took > 30 seconds")
-        return {
-            "message": "That took too long, let me try again. What were you saying?",
-            "state": "MCQ",
-            "mcq": None,
-            "text_input": False,
-            "is_complete": False,
-            "questions_asked": len([m for m in session["chat_history"] if m.role == "assistant"]),
-        }
+        logger.error("Chat timeout: LLM call took > 50 seconds")
+        raise HTTPException(status_code=504, detail="LLM call timed out, client should retry")
     except Exception as e:
         logger.error(f"Chat error: {e}\n{traceback.format_exc()}")
-        return {
-            "message": "Sorry, I hit a snag. Could you try again?",
-            "state": "MCQ",
-            "mcq": None,
-            "text_input": False,
-            "is_complete": False,
-            "questions_asked": 0,
-        }
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 class PayloadRequest(BaseModel):
