@@ -164,17 +164,8 @@
                         </div>
                     </div>
                     <div class="chat-progress" id="chat-progress">
-                        <div class="progress-dot active" data-step="1"></div>
-                        <div class="progress-dot" data-step="2"></div>
-                        <div class="progress-dot" data-step="3"></div>
-                        <div class="progress-dot" data-step="4"></div>
-                        <div class="progress-dot" data-step="5"></div>
-                        <div class="progress-dot" data-step="6"></div>
-                        <div class="progress-dot" data-step="7"></div>
-                        <div class="progress-dot" data-step="8"></div>
-                        <div class="progress-dot" data-step="9"></div>
-                        <div class="progress-dot" data-step="10"></div>
-                        <span class="progress-label" id="progress-label">1/10</span>
+                        <!-- Dots are generated dynamically by chat.js -->
+                        <span class="progress-label" id="progress-label"></span>
                     </div>
                 </div>
 
@@ -229,4 +220,7 @@
 
     </main>
 
-    <script src="/static/chat.js?v={{ sessio
+    <script src="/static/chat.js?v={{ session_id }}"></script>
+</body>
+
+</html>

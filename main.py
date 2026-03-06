@@ -403,14 +403,48 @@ def _get_question(q_id: str, session: dict) -> dict:
         return STATIC_QUESTIONS.get(q_id, STATIC_QUESTIONS["stage"])
 
 
+def _get_active_questions(session: dict) -> list[str]:
+    """Return the ordered list of questions that should be asked based on answers."""
+    questions = [
+        "stage", "job_type", "domain", "specialization", "location",
+        "work_style", "company_stage", "industry", "salary",
+        "role_focus", "skills", "timeline"
+    ]
+    
+    answers = session.get("answers", {})
+    
+    def _to_str(val) -> str:
+        if isinstance(val, list): return ", ".join(val)
+        return str(val) if val else ""
+        
+    stage = _to_str(answers.get("stage")).lower()
+    job_type = _to_str(answers.get("job_type")).lower()
+
+    # Smart skipping logic
+    if "student" in stage and "not graduating" in stage:
+        # Internships only. Skip job_type, company_stage, salary, timeline.
+        for q in ["job_type", "company_stage", "salary", "timeline"]:
+            if q in questions: questions.remove(q)
+            
+    elif "intern" in job_type:
+        # Skip salary and company_stage for internships
+        for q in ["company_stage", "salary"]:
+            if q in questions: questions.remove(q)
+            
+    elif "experienced" in stage or "3+" in stage:
+        # Skip job type (assume full time)
+        if "job_type" in questions: questions.remove("job_type")
+        
+    return questions
+
+
 # ============================================================================
-# Chat Endpoint — 12 Dynamic Questions, Instant Responses
+# Chat Endpoint — Dynamic Questions, Instant Responses
 # ============================================================================
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    """Server-side question flow. 12 ontology-based questions. Instant responses."""
-
+    """Server-side question flow with dynamic skipping. Instant responses."""
     logger.info(f"CHAT REQUEST: session={request.session_id}, message='{request.message[:50] if request.message else ''}'")
 
     session = sessions.get(request.session_id)
@@ -418,29 +452,27 @@ async def chat(request: ChatRequest):
         session = {
             "chat_history": [], "resume_summary": None,
             "resume_raw_text": None, "resume_uploaded": False,
-            "payload": None, "question_index": 0, "answers": {},
+            "payload": None, "answers": {},
         }
         sessions[request.session_id] = session
 
-    if "question_index" not in session:
-        session["question_index"] = 0
     if "answers" not in session:
         session["answers"] = {}
 
-    qi = session["question_index"]
+    active_questions = _get_active_questions(session)
 
     # ── FIRST TURN: greeting + Q1 ──
-    if not request.message and qi == 0:
+    if not request.message and not session.get("answers"):
         has_resume = bool(session.get("resume_raw_text"))
-        q = _get_question(QUESTION_ORDER[0], session)
+        q = _get_question(active_questions[0], session)
 
         if has_resume:
             preview = session.get("resume_summary", {})
             skills = preview.get("skills", [])
             skill_text = f" I can see skills like {', '.join(skills[:3])} on your resume." if skills else ""
-            greeting = f"Hey! Thanks for sharing your resume.{skill_text} Let's find your perfect next role. I have 12 quick questions."
+            greeting = f"Hey! Thanks for sharing your resume.{skill_text} Let's find your perfect next role. I have a few quick questions."
         else:
-            greeting = "Hey there! I'm StudojoProfiler, your career buddy. I'll ask you 12 quick questions to understand what you're looking for."
+            greeting = "Hey there! I'm StudojoProfiler, your career buddy. I'll ask you a few quick questions to understand what you're looking for."
 
         msg = f"{greeting}|||{q['message']}"
         session["chat_history"].append(ChatMessage(role="assistant", content=msg))
@@ -453,44 +485,60 @@ async def chat(request: ChatRequest):
             "text_input": q["text_input"],
             "is_complete": False,
             "questions_asked": 1,
+            "total_questions": len(active_questions)
         }
 
     # ── RECORD USER ANSWER ──
     if request.message:
         session["chat_history"].append(ChatMessage(role="user", content=request.message))
-        if qi < len(QUESTION_ORDER):
-            q_id = QUESTION_ORDER[qi]
+        
+        # Find the currently asked question (first one not answered)
+        current_q = None
+        for q_id in active_questions:
+            if q_id not in session["answers"]:
+                current_q = q_id
+                break
+                
+        if current_q:
             if "," in request.message:
-                session["answers"][q_id] = [a.strip() for a in request.message.split(",")]
+                session["answers"][current_q] = [a.strip() for a in request.message.split(",")]
             else:
-                session["answers"][q_id] = request.message
+                session["answers"][current_q] = request.message
+                
+        # Re-evaluate active questions since the new answer might trigger a skip
+        active_questions = _get_active_questions(session)
 
-    # ── ADVANCE ──
-    session["question_index"] = qi + 1
-    next_qi = session["question_index"]
+    # ── FIND NEXT QUESTION ──
+    next_q_id = None
+    questions_asked_so_far = 0
+    for q_id in active_questions:
+        questions_asked_so_far += 1
+        if q_id not in session["answers"]:
+            next_q_id = q_id
+            break
 
     # ── ALL DONE → COMPLETE ──
-    if next_qi >= len(QUESTION_ORDER):
-        done_msg = "Thanks for answering all 12 questions! I have everything I need to build your career profile. Generating your report now... 📊"
+    if not next_q_id:
+        done_msg = "Thanks for answering my questions! I have everything I need to build your career profile. Generating your report now... 📊"
         session["chat_history"].append(ChatMessage(role="assistant", content=done_msg))
-        logger.info(f"COMPLETE: all {len(QUESTION_ORDER)} questions answered")
+        logger.info(f"COMPLETE: all {len(active_questions)} questions answered")
         return {
             "message": done_msg,
             "state": "PAYLOAD_READY",
             "mcq": None,
             "text_input": False,
             "is_complete": True,
-            "questions_asked": next_qi,
+            "questions_asked": questions_asked_so_far - 1 if questions_asked_so_far > 0 else 0,
+            "total_questions": len(active_questions)
         }
 
     # ── SERVE NEXT QUESTION ──
-    next_q_id = QUESTION_ORDER[next_qi]
     q = _get_question(next_q_id, session)
     ack = q.get("ack") or ""
     msg = f"{ack}|||{q['message']}" if ack else q["message"]
 
     session["chat_history"].append(ChatMessage(role="assistant", content=msg))
-    logger.info(f"SERVED Q{next_qi + 1}/{len(QUESTION_ORDER)}: {next_q_id}")
+    logger.info(f"SERVED Q{questions_asked_so_far}/{len(active_questions)}: {next_q_id}")
 
     return {
         "message": msg,
@@ -498,7 +546,8 @@ async def chat(request: ChatRequest):
         "mcq": q["mcq"],
         "text_input": q["text_input"],
         "is_complete": False,
-        "questions_asked": next_qi + 1,
+        "questions_asked": questions_asked_so_far,
+        "total_questions": len(active_questions)
     }
 
 
