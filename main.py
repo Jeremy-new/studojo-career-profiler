@@ -319,6 +319,39 @@ STATIC_QUESTIONS = {
         },
         "text_input": False,
     },
+    "education_level": {
+        "ack": "Understood.",
+        "message": "What is your highest level of education?",
+        "mcq": {
+            "question": "What is your highest level of education?",
+            "options": [
+                {"label": "A", "text": "High School / Diploma"},
+                {"label": "B", "text": "Bachelor's Degree"},
+                {"label": "C", "text": "Master's Degree"},
+                {"label": "D", "text": "PhD / Doctorate"},
+                {"label": "E", "text": "Self-taught / Bootcamp"},
+                {"label": "F", "text": "Other"},
+            ],
+            "allow_multiple": False,
+        },
+        "text_input": False,
+    },
+    "years_experience": {
+        "ack": "Got it.",
+        "message": "Roughly how many years of total professional experience do you have?",
+        "mcq": {
+            "question": "Years of experience?",
+            "options": [
+                {"label": "A", "text": "0-1 years (Entry level)"},
+                {"label": "B", "text": "1-3 years (Junior)"},
+                {"label": "C", "text": "3-5 years (Mid-level)"},
+                {"label": "D", "text": "5-10 years (Senior)"},
+                {"label": "E", "text": "10+ years (Staff / Lead)"},
+            ],
+            "allow_multiple": False,
+        },
+        "text_input": False,
+    },
 }
 
 # 12 questions in order. "domain" and "specialization" are dynamically generated.
@@ -420,15 +453,20 @@ def _get_active_questions(session: dict) -> list[str]:
     stage = _to_str(answers.get("stage")).lower()
     job_type = _to_str(answers.get("job_type")).lower()
 
+    # Smart fallback: Ask foundational questions if no resume
+    if not session.get("resume_uploaded", False) and not session.get("resume_raw_text"):
+        questions.insert(1, "education_level")
+        questions.insert(2, "years_experience")
+
     # Smart skipping logic
     if "student" in stage and "not graduating" in stage:
         # Internships only. Skip job_type, company_stage, salary, timeline.
-        for q in ["job_type", "company_stage", "salary", "timeline"]:
+        for q in ["job_type", "company_stage", "salary", "timeline", "years_experience"]:
             if q in questions: questions.remove(q)
             
     elif "intern" in job_type:
         # Skip salary and company_stage for internships
-        for q in ["company_stage", "salary"]:
+        for q in ["company_stage", "salary", "years_experience"]:
             if q in questions: questions.remove(q)
             
     elif "experienced" in stage or "3+" in stage:
@@ -647,6 +685,8 @@ def _generate_payload_from_answers(session: dict) -> dict:
     skills = answers.get("skills", [])
     if isinstance(skills, str): skills = [skills]
     timeline = _to_str(answers.get("timeline", ""))
+    education_level = _to_str(answers.get("education_level", ""))
+    years_exp = _to_str(answers.get("years_experience", ""))
 
     seniority = "entry"
     if "intern" in job_type.lower():
@@ -716,7 +756,8 @@ def _generate_payload_from_answers(session: dict) -> dict:
         "personal_info": {
             "name": resume_summary.get("name") if isinstance(resume_summary, dict) else None,
             "email": resume_summary.get("email") if isinstance(resume_summary, dict) else None,
-            "education": [],
+            "education": [{"degree": education_level, "field": "General"}] if education_level else [],
+            "years_of_experience": years_exp if years_exp else None,
             "skills_detected": detected_skills[:10],
         },
         "preferences": {
