@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Reference repos (not part of the app)
+instructor-main/
+career-intelligence-platform-main/
+chatbot-ui-main/
+pyresparser-master/
+educor-main/
+smart-orientation-ontology-upmain/
+
+# Other
+_assets_original/
+*.png
+*.pdf
+studojo_website_content.txt
+image_preprocessor.py
+sample_payload.json
+.gemini/

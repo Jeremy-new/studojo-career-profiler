@@ -1,0 +1,1496 @@
+/* ============================================================================
+   CandidateProfiler — Studojo Design System v2
+   Light theme · Purple accents · Design frames · Horizontal MCQ chips
+   ============================================================================ */
+
+/* --- Reset & Base --- */
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* Studojo Palette */
+    --bg-primary: #ffffff;
+    --bg-secondary: #faf9ff;
+    --bg-page: #f5f3ff;
+    --bg-hero: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%);
+    --bg-card: #ffffff;
+    --bg-muted: #f3f2f8;
+    --border: rgba(0, 0, 0, 0.06);
+    --border-medium: rgba(0, 0, 0, 0.1);
+    --border-card: rgba(0, 0, 0, 0.08);
+    --border-focus: #7c3aed;
+    --text-primary: #1a1a2e;
+    --text-secondary: #5a5a72;
+    --text-muted: #9090a8;
+    --text-on-purple: #ffffff;
+    --purple: #7c3aed;
+    --purple-light: #a855f7;
+    --purple-bg: rgba(124, 58, 237, 0.06);
+    --purple-bg-solid: #f0ebff;
+    --purple-border: rgba(124, 58, 237, 0.15);
+    --gradient: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%);
+    --green: #22c55e;
+    --green-bg: #f0fdf4;
+    --green-solid: #16a34a;
+    --orange: #f97316;
+    --orange-bg: #fff7ed;
+    --yellow: #eab308;
+    --yellow-bg: #fefce8;
+    --red: #ef4444;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-2xl: 24px;
+    --radius-full: 9999px;
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+    --shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.1);
+    --shadow-purple: 0 4px 16px rgba(124, 58, 237, 0.2);
+    --shadow-purple-lg: 0 8px 32px rgba(124, 58, 237, 0.25);
+    --transition: 0.2s ease;
+    --transition-slow: 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* --- Header (Studojo frame: white navbar, clean, CTA button) --- */
+.header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: 0 24px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+}
+
+.header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo-text {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+}
+
+.logo-badge {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--purple);
+    background: var(--purple-bg-solid);
+    padding: 4px 14px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--purple-border);
+}
+
+/* --- Main Container --- */
+.main-container {
+    padding-top: 60px;
+    min-height: 100vh;
+}
+
+.section {
+    display: none;
+    animation: fadeSlideIn 0.5s var(--transition-slow);
+}
+
+.section.active {
+    display: block;
+}
+
+@keyframes fadeSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- Gradient Text --- */
+.gradient-text {
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* --- Buttons (Studojo frame: rounded, bold, colored) --- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 14px;
+    border: none;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all var(--transition);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.btn-primary {
+    background: var(--gradient);
+    color: white;
+    padding: 12px 28px;
+    box-shadow: var(--shadow-purple);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-purple-lg);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-ghost {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    padding: 12px 28px;
+    border: 2px solid var(--border-medium);
+}
+
+.btn-ghost:hover {
+    border-color: var(--purple);
+    color: var(--purple);
+    background: var(--purple-bg);
+}
+
+.btn-lg {
+    padding: 14px 36px;
+    font-size: 15px;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* ============================================================================
+   UPLOAD SECTION — Studojo hero + How-it-works steps + Feature dojo cards
+   ============================================================================ */
+
+#upload-section {
+    flex-direction: column;
+    align-items: center;
+    min-height: calc(100vh - 60px);
+    background: var(--bg-primary);
+    display: none;
+}
+
+#upload-section.active {
+    display: flex;
+}
+
+/* Hero Banner (Studojo frame: purple gradient with floating shapes) */
+.upload-hero {
+    width: 100%;
+    background: var(--bg-hero);
+    padding: 72px 24px 88px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Floating decorative shapes (Studojo pattern) */
+.upload-hero::before {
+    content: '';
+    position: absolute;
+    top: -30px;
+    right: 60px;
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 200, 0, 0.6);
+    border-radius: 50%;
+    animation: float 6s ease-in-out infinite;
+}
+
+.upload-hero::after {
+    content: '';
+    position: absolute;
+    bottom: 30px;
+    left: 40px;
+    width: 48px;
+    height: 48px;
+    background: rgba(34, 197, 94, 0.5);
+    border-radius: var(--radius-md);
+    transform: rotate(15deg);
+    animation: float 5s ease-in-out infinite reverse;
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+
+    50% {
+        transform: translateY(-12px) rotate(5deg);
+    }
+}
+
+.hero-shape-1 {
+    position: absolute;
+    top: 50%;
+    left: 8%;
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 50%;
+}
+
+.hero-shape-2 {
+    position: absolute;
+    bottom: 20%;
+    right: 12%;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-sm);
+    transform: rotate(30deg);
+}
+
+.upload-hero-badge {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 18px;
+    border-radius: var(--radius-full);
+    margin-bottom: 20px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.upload-hero h1 {
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.15;
+    color: white;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
+}
+
+.upload-hero .subtitle {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 16px;
+    line-height: 1.6;
+    max-width: 480px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+/* Upload Card (floating above hero) */
+.upload-card {
+    width: 100%;
+    max-width: 540px;
+    padding: 0 20px;
+    margin-top: -44px;
+    position: relative;
+    z-index: 2;
+}
+
+.upload-card-inner {
+    background: var(--bg-card);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-xl);
+    padding: 36px 32px;
+    border: 1px solid var(--border-card);
+}
+
+/* Upload Zone */
+.upload-zone {
+    border: 2px dashed rgba(124, 58, 237, 0.25);
+    border-radius: var(--radius-xl);
+    padding: 44px 24px;
+    cursor: pointer;
+    transition: all var(--transition);
+    background: var(--purple-bg);
+    margin-bottom: 20px;
+}
+
+.upload-zone:hover,
+.upload-zone.dragover {
+    border-color: var(--purple);
+    background: var(--purple-bg-solid);
+    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.06);
+    transform: scale(1.01);
+}
+
+.upload-icon {
+    font-size: 44px;
+    margin-bottom: 12px;
+}
+
+.upload-main {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.upload-link {
+    color: var(--purple);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.upload-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* Progress & Preview */
+.upload-progress {
+    margin-bottom: 20px;
+}
+
+.progress-bar {
+    height: 4px;
+    background: var(--bg-muted);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--gradient);
+    border-radius: var(--radius-full);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.resume-preview {
+    background: var(--green-bg);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: var(--radius-xl);
+    padding: 20px;
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.preview-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    font-weight: 600;
+    color: var(--green-solid);
+}
+
+.preview-body {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.preview-body strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.preview-body .preview-tag {
+    display: inline-block;
+    background: var(--purple-bg-solid);
+    color: var(--purple);
+    padding: 3px 10px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 500;
+    margin: 2px 4px 2px 0;
+}
+
+/* Divider */
+.divider {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 20px 0;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-medium);
+}
+
+/* ─── How It Works Section (Studojo "3 steps" frame) ─── */
+.how-it-works {
+    width: 100%;
+    max-width: 720px;
+    padding: 48px 20px 0;
+    text-align: center;
+}
+
+.how-it-works-title {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+}
+
+.how-it-works-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--purple);
+    background: var(--purple-bg-solid);
+    padding: 4px 14px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--purple-border);
+    margin-left: 8px;
+    position: relative;
+    top: -2px;
+}
+
+.how-it-works-sub {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+}
+
+.steps-row {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+}
+
+.step-card {
+    flex: 1;
+    max-width: 200px;
+    text-align: center;
+    padding: 24px 16px;
+    border-radius: var(--radius-xl);
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition);
+}
+
+.step-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+}
+
+.step-number {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 800;
+    color: white;
+    margin-bottom: 14px;
+}
+
+.step-number.purple {
+    background: var(--purple);
+}
+
+.step-number.green {
+    background: var(--green);
+}
+
+.step-number.orange {
+    background: var(--orange);
+}
+
+.step-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.step-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+/* ─── Feature Dojo Cards (Studojo colored card frames) ─── */
+.features-section {
+    width: 100%;
+    max-width: 720px;
+    padding: 40px 20px 56px;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.feature-card {
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all var(--transition);
+    cursor: default;
+}
+
+.feature-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.feature-card.purple-card {
+    background: linear-gradient(135deg, #f0ebff 0%, #e8deff 100%);
+    border: 1px solid rgba(124, 58, 237, 0.12);
+}
+
+.feature-card.green-card {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 1px solid rgba(34, 197, 94, 0.15);
+}
+
+.feature-card.yellow-card {
+    background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+    border: 1px solid rgba(234, 179, 8, 0.15);
+}
+
+.feature-card.orange-card {
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+    border: 1px solid rgba(249, 115, 22, 0.15);
+}
+
+.feature-card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    margin-bottom: 14px;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.feature-card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.feature-card-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.feature-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.feature-check::before {
+    content: '✓';
+    color: var(--green-solid);
+    font-weight: 700;
+    font-size: 11px;
+}
+
+/* ============================================================================
+   CHAT SECTION — Studojo framed chat card
+   ============================================================================ */
+
+#chat-section {
+    height: calc(100vh - 60px);
+    background: var(--bg-page);
+    padding: 20px 16px;
+    display: none;
+}
+
+#chat-section.active {
+    display: flex;
+    justify-content: center;
+}
+
+/* Chat Card Frame (Studojo pattern: bordered card containing the chat) */
+.chat-frame {
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+/* Chat Header — progress stepper */
+.chat-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-card);
+}
+
+.chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.chat-header-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    background: var(--purple-bg-solid);
+    border: 1px solid var(--purple-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+
+.chat-header-info h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 1px;
+}
+
+.chat-header-info p {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* Progress Steps */
+.chat-progress {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.progress-dot {
+    width: 24px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--bg-muted);
+    transition: all var(--transition);
+}
+
+.progress-dot.active {
+    background: var(--gradient);
+    width: 32px;
+}
+
+.progress-dot.completed {
+    background: var(--green);
+}
+
+.progress-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+/* Chat Messages Area */
+.chat-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scroll-behavior: smooth;
+    background: var(--bg-secondary);
+}
+
+.chat-messages::-webkit-scrollbar {
+    width: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: var(--border-medium);
+    border-radius: var(--radius-full);
+}
+
+/* Message Bubbles */
+.message {
+    display: flex;
+    gap: 10px;
+    max-width: 82%;
+    animation: messageIn 0.35s var(--transition-slow);
+}
+
+@keyframes messageIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.message.agent {
+    align-self: flex-start;
+}
+
+.message.user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.message-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.message.agent .message-avatar {
+    background: var(--purple-bg-solid);
+    border: 1px solid var(--purple-border);
+}
+
+.message.user .message-avatar {
+    background: var(--bg-muted);
+    border: 1px solid var(--border);
+}
+
+.message-bubble {
+    padding: 12px 16px;
+    font-size: 14px;
+    line-height: 1.6;
+    word-wrap: break-word;
+}
+
+.message.agent .message-bubble {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px var(--radius-lg) var(--radius-lg) var(--radius-lg);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-xs);
+}
+
+.message.user .message-bubble {
+    background: var(--gradient);
+    color: white;
+    border-radius: var(--radius-lg) 4px var(--radius-lg) var(--radius-lg);
+    box-shadow: var(--shadow-purple);
+}
+
+/* Typing Indicator */
+.typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 24px 8px;
+    background: var(--bg-secondary);
+}
+
+.typing-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    background: var(--purple-bg-solid);
+    border: 1px solid var(--purple-border);
+}
+
+.typing-dots {
+    display: flex;
+    gap: 5px;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px var(--radius-lg) var(--radius-lg) var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+}
+
+.typing-dots span {
+    width: 6px;
+    height: 6px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite;
+}
+
+.typing-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes bounce {
+
+    0%,
+    60%,
+    100% {
+        transform: translateY(0);
+        opacity: 0.4;
+    }
+
+    30% {
+        transform: translateY(-5px);
+        opacity: 1;
+    }
+}
+
+/* ============================================================================
+   MCQ CHIPS — Inline in chat messages, centered
+   ============================================================================ */
+
+/* Inline MCQ block rendered inside chat-messages */
+.mcq-inline-block {
+    padding: 8px 0 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    animation: fadeSlideIn 0.3s ease;
+}
+
+.mcq-chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    max-width: 100%;
+}
+
+.mcq-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 16px;
+    background: var(--bg-card);
+    border: 1.5px solid var(--border-medium);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all var(--transition);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    font-family: inherit;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.mcq-chip:hover {
+    border-color: var(--purple);
+    background: var(--purple-bg);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.mcq-chip:active {
+    transform: translateY(0);
+}
+
+.mcq-chip.selected {
+    background: var(--gradient);
+    color: white;
+    border-color: transparent;
+    box-shadow: var(--shadow-purple);
+}
+
+.mcq-chip.selected:hover {
+    box-shadow: var(--shadow-purple-lg);
+    background: var(--gradient);
+}
+
+.mcq-chip .chip-check {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border-medium);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+    flex-shrink: 0;
+    font-size: 10px;
+}
+
+.mcq-chip.selected .chip-check {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Asterisk note for multi-select */
+.mcq-note {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+}
+
+/* Confirm Button */
+.mcq-confirm-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 28px;
+    background: var(--gradient);
+    color: white;
+    border: none;
+    border-radius: var(--radius-full);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    box-shadow: var(--shadow-purple);
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+}
+
+.mcq-confirm-btn.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.mcq-confirm-btn:hover {
+    box-shadow: var(--shadow-purple-lg);
+    transform: translateY(-1px);
+}
+
+/* ============================================================================
+   CTC / SALARY INPUT — Inline in chat messages
+   ============================================================================ */
+
+.ctc-inline-block {
+    padding: 12px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    animation: fadeSlideIn 0.3s ease;
+}
+
+.ctc-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.ctc-inputs {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ctc-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ctc-field label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.ctc-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--bg-card);
+    border: 1.5px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+    transition: border-color var(--transition);
+}
+
+.ctc-input-wrap:focus-within {
+    border-color: var(--purple);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.08);
+}
+
+.ctc-prefix,
+.ctc-suffix {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.ctc-input {
+    border: none;
+    outline: none;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    width: 50px;
+    background: transparent;
+    text-align: center;
+}
+
+.ctc-input::placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.ctc-input::-webkit-inner-spin-button,
+.ctc-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.ctc-dash {
+    font-size: 18px;
+    color: var(--text-muted);
+    font-weight: 300;
+    padding-top: 18px;
+}
+
+.mcq-confirm-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* "Other" inline text input */
+.other-input-wrap {
+    width: 100%;
+    max-width: 280px;
+    animation: fadeSlideIn 0.2s ease;
+}
+
+.other-text-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--text-primary);
+    background: var(--bg-card);
+    outline: none;
+    transition: border-color var(--transition);
+}
+
+.other-text-input:focus {
+    border-color: var(--purple);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.08);
+}
+
+.other-text-input::placeholder {
+    color: var(--text-muted);
+}
+
+.other-input-wrap.hidden {
+    display: none;
+}
+
+/* Chat Input */
+.chat-input-area {
+    padding: 12px 24px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-card);
+}
+
+.input-wrapper {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--bg-muted);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-full);
+    padding: 4px 4px 4px 18px;
+    transition: all var(--transition);
+}
+
+.input-wrapper:focus-within {
+    border-color: var(--purple);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.06);
+    background: var(--bg-card);
+}
+
+.chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 8px 0;
+}
+
+.chat-input::placeholder {
+    color: var(--text-muted);
+}
+
+.send-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--gradient);
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+    flex-shrink: 0;
+}
+
+.send-btn:hover:not(:disabled) {
+    transform: scale(1.08);
+    box-shadow: var(--shadow-purple);
+}
+
+.send-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* ============================================================================
+   PAYLOAD SECTION — Studojo card frames
+   ============================================================================ */
+
+#payload-section {
+    min-height: calc(100vh - 60px);
+    padding: 32px 20px 64px;
+    background: var(--bg-page);
+    display: none;
+}
+
+#payload-section.active {
+    display: block;
+}
+
+.payload-container {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.payload-header {
+    text-align: center;
+    margin-bottom: 28px;
+}
+
+.payload-header h2 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+}
+
+.payload-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.payload-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.payload-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+    animation: fadeSlideIn 0.4s ease;
+}
+
+.payload-card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--purple);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.payload-card p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.payload-card .value {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.payload-card .tag {
+    display: inline-block;
+    background: var(--purple-bg-solid);
+    color: var(--purple);
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 600;
+    margin: 3px 4px 3px 0;
+}
+
+.role-card {
+    background: var(--bg-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all var(--transition);
+}
+
+.role-card:last-child {
+    margin-bottom: 0;
+}
+
+.role-card:hover {
+    border-color: var(--purple-border);
+    box-shadow: var(--shadow-sm);
+}
+
+.role-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.role-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.role-reasoning {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.fit-score {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+}
+
+.fit-score.high {
+    color: var(--green-solid);
+}
+
+.fit-score.medium {
+    color: var(--orange);
+}
+
+.fit-score.low {
+    color: var(--red);
+}
+
+.payload-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* --- Footer watermark (Studojo pattern) --- */
+.footer-watermark {
+    text-align: center;
+    padding: 32px 0 24px;
+    color: rgba(0, 0, 0, 0.03);
+    font-size: 72px;
+    font-weight: 900;
+    letter-spacing: -3px;
+    user-select: none;
+    pointer-events: none;
+}
+
+/* --- Utilities --- */
+.hidden {
+    display: none !important;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 15px;
+    line-height: 1.6;
+    max-width: 500px;
+}
+
+/* --- Responsive --- */
+@media (max-width: 640px) {
+    .upload-hero h1 {
+        font-size: 28px;
+    }
+
+    .upload-hero {
+        padding: 48px 20px 64px;
+    }
+
+    .upload-card-inner {
+        padding: 28px 20px;
+    }
+
+    .steps-row {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .step-card {
+        max-width: 280px;
+        width: 100%;
+    }
+
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .message {
+        max-width: 90%;
+    }
+
+    .chat-messages {
+        padding: 16px;
+    }
+
+    .mcq-inline-block {
+        padding: 8px 0 10px;
+    }
+
+    .chat-input-area {
+        padding: 12px 16px 14px;
+    }
+
+    .chat-header {
+        padding: 12px 16px;
+    }
+
+    .payload-header h2 {
+        font-size: 22px;
+    }
+
+    .mcq-chip {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+
+    .footer-watermark {
+        font-size: 48px;
+    }
+}
