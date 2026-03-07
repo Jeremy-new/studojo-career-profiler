@@ -737,7 +737,13 @@ def _generate_payload_from_answers(session: dict) -> dict:
     elif "switch" in stage.lower():
         seniority = "junior"
 
-    matched_roles = _find_matching_roles(domains, specs, seniority, user_skills=skills + detected_skills)
+    # Extract skills from resume and merge with user-typed skills
+    detected_skills = resume_summary.get("skills", []) if isinstance(resume_summary, dict) else []
+    if not detected_skills:
+        detected_skills = skills
+    all_skills = list(dict.fromkeys(detected_skills + skills))  # preserves order, removes dupes
+
+    matched_roles = _find_matching_roles(domains, specs, seniority, user_skills=all_skills)
     if not matched_roles:
         matched_roles = [
             {"title": "Business Analyst", "seniority": seniority, "cluster": "Consulting & Strategy",
@@ -783,12 +789,6 @@ def _generate_payload_from_answers(session: dict) -> dict:
     if locations:
         summary_parts.append(f"looking to work in {', '.join(locations[:2])}")
     profile_summary = ". ".join(summary_parts) + "." if summary_parts else "Career profile generated from conversation."
-
-    detected_skills = resume_summary.get("skills", []) if isinstance(resume_summary, dict) else []
-    if not detected_skills:
-        detected_skills = skills
-    # Merge user-typed skills with resume-parsed skills (dedup)
-    all_skills = list(dict.fromkeys(detected_skills + skills))  # preserves order, removes dupes
 
     # Pull education from resume if available
     resume_education = []
