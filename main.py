@@ -460,14 +460,18 @@ def _get_active_questions(session: dict) -> list[str]:
         questions.insert(2, "years_experience")
 
     # Smart skipping logic
+    # IMPORTANT: company_stage is NEVER skipped — everyone needs to answer
+    # what type of company they want (startup, MNC, etc.)
     if "student" in stage and "not graduating" in stage:
         # Pre-university students: internships only.
-        # Skip job_type, company_stage, salary, timeline, years_experience.
-        for q in ["job_type", "company_stage", "salary", "timeline", "years_experience"]:
+        # Skip job_type, salary, years_experience only.
+        # KEEP: company_stage, timeline, industry, role_focus
+        for q in ["job_type", "salary", "years_experience"]:
             if q in questions: questions.remove(q)
             
     elif "intern" in job_type:
-        # Skip salary for internships but KEEP company_stage
+        # Skip salary for internships
+        # KEEP: company_stage, timeline
         for q in ["salary", "years_experience"]:
             if q in questions: questions.remove(q)
             
