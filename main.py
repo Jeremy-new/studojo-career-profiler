@@ -454,24 +454,32 @@ def _get_active_questions(session: dict) -> list[str]:
     job_type = _to_str(answers.get("job_type")).lower()
 
     # Smart fallback: Ask foundational questions if no resume
-    if not session.get("resume_uploaded", False) and not session.get("resume_raw_text"):
+    has_resume = session.get("resume_uploaded", False) or bool(session.get("resume_raw_text"))
+    if not has_resume:
         questions.insert(1, "education_level")
         questions.insert(2, "years_experience")
 
     # Smart skipping logic
     if "student" in stage and "not graduating" in stage:
-        # Internships only. Skip job_type, company_stage, salary, timeline.
+        # Pre-university students: internships only.
+        # Skip job_type, company_stage, salary, timeline, years_experience.
         for q in ["job_type", "company_stage", "salary", "timeline", "years_experience"]:
             if q in questions: questions.remove(q)
             
     elif "intern" in job_type:
-        # Skip salary and company_stage for internships
-        for q in ["company_stage", "salary", "years_experience"]:
+        # Skip salary for internships but KEEP company_stage
+        for q in ["salary", "years_experience"]:
             if q in questions: questions.remove(q)
             
     elif "experienced" in stage or "3+" in stage:
         # Skip job type (assume full time)
         if "job_type" in questions: questions.remove("job_type")
+
+    # If resume has skills, skip the skills question (we already have them)
+    if has_resume:
+        resume_skills = (session.get("resume_summary") or {}).get("skills", [])
+        if len(resume_skills) >= 3 and "skills" in questions:
+            questions.remove("skills")
         
     return questions
 
@@ -729,7 +737,7 @@ def _generate_payload_from_answers(session: dict) -> dict:
     elif "switch" in stage.lower():
         seniority = "junior"
 
-    matched_roles = _find_matching_roles(domains, specs, seniority, user_skills=skills)
+    matched_roles = _find_matching_roles(domains, specs, seniority, user_skills=skills + detected_skills)
     if not matched_roles:
         matched_roles = [
             {"title": "Business Analyst", "seniority": seniority, "cluster": "Consulting & Strategy",
@@ -779,6 +787,26 @@ def _generate_payload_from_answers(session: dict) -> dict:
     detected_skills = resume_summary.get("skills", []) if isinstance(resume_summary, dict) else []
     if not detected_skills:
         detected_skills = skills
+    # Merge user-typed skills with resume-parsed skills (dedup)
+    all_skills = list(dict.fromkeys(detected_skills + skills))  # preserves order, removes dupes
+
+    # Pull education from resume if available
+    resume_education = []
+    if isinstance(resume_summary, dict):
+        for edu in resume_summary.get("education", []):
+            if isinstance(edu, str):
+                resume_education.append({"degree": edu, "field": "From Resume"})
+            elif isinstance(edu, dict):
+                resume_education.append(edu)
+    if not resume_education and education_level:
+        resume_education = [{"degree": education_level, "field": "General"}]
+
+    # Pull years of experience from resume if available
+    resume_yoe = None
+    if isinstance(resume_summary, dict):
+        resume_yoe = resume_summary.get("years_experience")
+    if not resume_yoe:
+        resume_yoe = years_exp if years_exp else None
 
     return {
         "candidate_id": str(_uuid.uuid4()),
@@ -787,9 +815,10 @@ def _generate_payload_from_answers(session: dict) -> dict:
         "personal_info": {
             "name": resume_summary.get("name") if isinstance(resume_summary, dict) else None,
             "email": resume_summary.get("email") if isinstance(resume_summary, dict) else None,
-            "education": [{"degree": education_level, "field": "General"}] if education_level else [],
-            "years_of_experience": years_exp if years_exp else None,
-            "skills_detected": detected_skills[:10],
+            "phone": resume_summary.get("phone") if isinstance(resume_summary, dict) else None,
+            "education": resume_education,
+            "years_of_experience": resume_yoe,
+            "skills_detected": all_skills[:15],
         },
         "preferences": {
             "locations": locations,

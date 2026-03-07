@@ -86,6 +86,17 @@ def quick_extract_preview(raw_text: str) -> dict:
         "brand", "product", "objective", "about", "professional",
         "personal", "career", "work", "portfolio", "references",
     }
+    # Words that indicate the line is an organization name, NOT a person's name
+    org_keywords = {
+        "office", "founders", "technologies", "solutions", "pvt", "ltd",
+        "inc", "llc", "corp", "group", "labs", "studio", "studios",
+        "consulting", "ventures", "capital", "media", "digital",
+        "academy", "institute", "university", "college", "school",
+        "foundation", "services", "associates", "partners", "agency",
+        "enterprises", "limited", "private", "company", "intern",
+        "internship", "trainee", "assistant", "manager", "analyst",
+        "developer", "engineer", "designer", "marketing", "freelance",
+    }
     lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
     for line in lines[:10]:  # Check first 10 lines
         # Skip if too long, contains @, http, or looks like a section header
@@ -94,9 +105,11 @@ def quick_extract_preview(raw_text: str) -> dict:
         # Skip lines with special chars that indicate headers (&, |, :, -, numbers)
         if re.search(r'[&|:]', line) or re.match(r'^[\d\-\.\)\#]', line):
             continue
-        # Skip if any word matches a section header
+        # Skip if any word matches a section header or org keyword
         words_lower = set(line.lower().split())
         if words_lower & section_headers:
+            continue
+        if words_lower & org_keywords:
             continue
         # Name should be 2-4 words, mostly alphabetic
         words = line.split()
@@ -105,7 +118,6 @@ def quick_extract_preview(raw_text: str) -> dict:
             break
 
     # Extract skills using word-boundary matching to avoid false positives
-    # Short keywords (<=2 chars) need exact word-boundary match
     skill_keywords = [
         "Python", "JavaScript", "Java", "SQL", "Excel", "React", "Node.js",
         "AWS", "Docker", "Kubernetes", "Git", "Machine Learning", "Data Analysis",
@@ -120,14 +132,59 @@ def quick_extract_preview(raw_text: str) -> dict:
         "SAP", "QuickBooks", "Bloomberg Terminal",
         "Lead generation", "Growth strategy", "Branding",
         "Stakeholder management", "Strategic consulting",
+        "Communication", "Leadership", "Problem solving", "Research",
+        "Negotiation", "Presentation", "Project Management",
+        "Video Editing", "Content Writing", "Graphic Design",
+        "Social Media", "Public Relations", "Event Management",
     ]
     for skill in skill_keywords:
-        # Use word boundaries for matching to avoid partial matches
         pattern = r'\b' + re.escape(skill) + r'\b'
         if re.search(pattern, raw_text, re.IGNORECASE):
             preview["skills"].append(skill)
 
     preview["skills"] = preview["skills"][:15]  # Cap at 15
 
+    # Extract education from resume text
+    education = []
+    edu_patterns = [
+        r'(?i)\b(B\.?Tech|B\.?E|B\.?Sc|B\.?Com|B\.?A|BBA|BCA|M\.?Tech|M\.?E|M\.?Sc|M\.?Com|M\.?A|MBA|MCA|Ph\.?D|Diploma)\b',
+    ]
+    for pat in edu_patterns:
+        matches = re.findall(pat, raw_text)
+        for m in matches:
+            if m not in education:
+                education.append(m)
+    preview["education"] = education[:3]
+
+    # Extract years of experience from resume text
+    exp_match = re.search(r'(\d+)\+?\s*(?:years?|yrs?)\s*(?:of)?\s*(?:experience|exp)', raw_text, re.IGNORECASE)
+    preview["years_experience"] = int(exp_match.group(1)) if exp_match else None
+
     # Generate a brief summary
     if preview["name"]:
+        preview["summary_text"] = f"Resume for {preview['name']} ({preview['char_count']} characters extracted)"
+    else:
+        preview["summary_text"] = f"Resume parsed ({preview['char_count']} characters extracted)"
+
+    return preview
+
+
+def parse_resume(file_bytes: bytes, filename: str) -> tuple[str, dict]:
+    """
+    Fast resume parsing: extract text + regex preview. No LLM call.
+    Returns (raw_text, preview_dict).
+    """
+    ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+
+    if ext == "pdf":
+        raw_text = extract_text_from_pdf(file_bytes)
+    elif ext in ("docx", "doc"):
+        raw_text = extract_text_from_docx(file_bytes)
+    else:
+        raise ValueError(f"Unsupported file type: .{ext}. Please upload a PDF or DOCX file.")
+
+    if not raw_text or len(raw_text.strip()) < 50:
+        raise ValueError("The uploaded file appears to be empty or contains too little text to parse.")
+
+    preview = quick_extract_preview(raw_text)
+    return raw_text, preview
